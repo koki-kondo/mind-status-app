@@ -1,0 +1,189 @@
+import React, { useState } from 'react';
+import axios from 'axios';
+import './UserBulkUpload.css';
+
+interface UploadResult {
+  success_count: number;
+  error_count: number;
+  errors: Array<{
+    row: number;
+    email?: string;
+    error: string;
+  }>;
+}
+
+const UserBulkUpload: React.FC = () => {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<UploadResult | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setResult(null);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('/api/users/csv_template/', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        responseType: 'blob',
+      });
+
+      // ダウンロード処理
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'user_template.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('テンプレートのダウンロードに失敗しました:', error);
+      alert('テンプレートのダウンロードに失敗しました');
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      alert('ファイルを選択してください');
+      return;
+    }
+
+    setUploading(true);
+    setResult(null);
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post('/api/users/bulk_upload/', formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      setResult(response.data);
+      
+      if (response.data.error_count === 0) {
+        alert(`${response.data.success_count}件のユーザーを登録しました！`);
+        setFile(null);
+      }
+    } catch (error: any) {
+      console.error('アップロードに失敗しました:', error);
+      if (error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('アップロードに失敗しました');
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="bulk-upload-container">
+      <div className="bulk-upload-header">
+        <h2>ユーザー一括登録（CSV）</h2>
+        <button onClick={handleDownloadTemplate} className="template-button">
+          📥 CSVテンプレートをダウンロード
+        </button>
+      </div>
+
+      <div className="upload-instructions">
+        <h3>📝 使い方</h3>
+        <ol>
+          <li>「CSVテンプレートをダウンロード」ボタンでサンプルファイルをダウンロード</li>
+          <li>テンプレートを参考にユーザー情報を入力</li>
+          <li>作成したCSVファイルをアップロード</li>
+          <li>「登録実行」ボタンをクリック</li>
+        </ol>
+        
+        <div className="required-fields">
+          <h4>必須項目</h4>
+          <ul>
+            <li><strong>email</strong>: メールアドレス（重複不可）</li>
+            <li><strong>full_name</strong>: 氏名</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="upload-section">
+        <div className="file-input-container">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            id="csv-file"
+            disabled={uploading}
+          />
+          <label htmlFor="csv-file" className="file-label">
+            {file ? `📄 ${file.name}` : '📁 CSVファイルを選択'}
+          </label>
+        </div>
+
+        <button
+          onClick={handleUpload}
+          disabled={!file || uploading}
+          className="upload-button"
+        >
+          {uploading ? 'アップロード中...' : '登録実行'}
+        </button>
+      </div>
+
+      {result && (
+        <div className="result-section">
+          <h3>登録結果</h3>
+          <div className="result-summary">
+            <div className="result-card success">
+              <span className="result-icon">✅</span>
+              <div>
+                <p className="result-label">成功</p>
+                <p className="result-number">{result.success_count}件</p>
+              </div>
+            </div>
+            <div className="result-card error">
+              <span className="result-icon">❌</span>
+              <div>
+                <p className="result-label">失敗</p>
+                <p className="result-number">{result.error_count}件</p>
+              </div>
+            </div>
+          </div>
+
+          {result.errors.length > 0 && (
+            <div className="error-list">
+              <h4>エラー詳細</h4>
+              <table className="error-table">
+                <thead>
+                  <tr>
+                    <th>行番号</th>
+                    <th>メールアドレス</th>
+                    <th>エラー内容</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.errors.map((error, index) => (
+                    <tr key={index}>
+                      <td>{error.row}</td>
+                      <td>{error.email || '-'}</td>
+                      <td>{error.error}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default UserBulkUpload;
