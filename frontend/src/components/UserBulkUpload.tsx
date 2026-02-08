@@ -38,7 +38,7 @@ const UserBulkUpload: React.FC = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'user_template.csv');
+      link.setAttribute('download', 'user_template.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -90,27 +90,32 @@ const UserBulkUpload: React.FC = () => {
   return (
     <div className="bulk-upload-container">
       <div className="bulk-upload-header">
-        <h2>ユーザー一括登録（CSV）</h2>
+        <h2>ユーザー一括登録（Excel/CSV）</h2>
         <button onClick={handleDownloadTemplate} className="template-button">
-          📥 CSVテンプレートをダウンロード
+          📥 テンプレートをダウンロード（Excel）
         </button>
       </div>
 
       <div className="upload-instructions">
         <h3>📝 使い方</h3>
         <ol>
-          <li>「CSVテンプレートをダウンロード」ボタンでサンプルファイルをダウンロード</li>
-          <li>テンプレートを参考にユーザー情報を入力</li>
-          <li>作成したCSVファイルをアップロード</li>
+          <li>「テンプレートをダウンロード」ボタンで Excel ファイルをダウンロード</li>
+          <li>Excel ファイル内の<strong>学校向け</strong>または<strong>企業向け</strong>シートを使用</li>
+          <li>サンプル行（3行目以降）を参考にユーザー情報を入力</li>
+          <li>Excel または CSV 形式で保存してアップロード</li>
           <li>「登録実行」ボタンをクリック</li>
         </ol>
         
         <div className="required-fields">
-          <h4>必須項目</h4>
-          <ul>
-            <li><strong>email</strong>: メールアドレス（重複不可）</li>
-            <li><strong>full_name</strong>: 氏名</li>
+          <h4>📋 Excel テンプレート構成</h4>
+          <ul style={{ fontSize: '14px' }}>
+            <li><strong>シート1 - 学校向け:</strong> 学籍番号、氏名、フリガナ、学年、組、性別、生年月日、メールアドレス</li>
+            <li><strong>シート2 - 企業向け:</strong> 社員番号、氏名、フリガナ、所属、役職、性別、生年月日、メールアドレス</li>
           </ul>
+          <p style={{ fontSize: '13px', color: '#999', marginTop: '12px' }}>
+            ※必須項目: <strong>氏名</strong>、<strong>メールアドレス</strong><br />
+            ※2行目の英語キーを削除しないでください（システム処理に使用）
+          </p>
         </div>
       </div>
 
@@ -118,13 +123,13 @@ const UserBulkUpload: React.FC = () => {
         <div className="file-input-container">
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             onChange={handleFileChange}
             id="csv-file"
             disabled={uploading}
           />
           <label htmlFor="csv-file" className="file-label">
-            {file ? `📄 ${file.name}` : '📁 CSVファイルを選択'}
+            {file ? `📄 ${file.name}` : '📁 Excel/CSV ファイルを選択'}
           </label>
         </div>
 

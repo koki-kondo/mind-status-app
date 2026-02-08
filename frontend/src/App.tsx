@@ -3,6 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminRegisterPage from './pages/AdminRegisterPage';
+import InvitePage from './pages/InvitePage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import './App.css';
 
 function App() {
@@ -35,9 +40,33 @@ function App() {
       <div className="App">
         <Routes>
           <Route 
+            path="/register" 
+            element={<AdminRegisterPage />} 
+          />
+          <Route 
             path="/login" 
             element={
               isAuthenticated ? <Navigate to="/dashboard" /> : <Login setIsAuthenticated={handleSetAuthenticated} />
+            } 
+          />
+          <Route 
+            path="/invite/:token" 
+            element={<InvitePage />} 
+          />
+          <Route 
+            path="/forgot-password" 
+            element={<ForgotPasswordPage />} 
+          />
+          <Route 
+            path="/reset-password/:token" 
+            element={<ResetPasswordPage />} 
+          />
+          <Route 
+            path="/change-password" 
+            element={
+              isAuthenticated
+                ? <ChangePasswordPage setIsAuthenticated={handleSetAuthenticated} />
+                : <Navigate to="/login" />
             } 
           />
           <Route 

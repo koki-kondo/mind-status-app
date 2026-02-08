@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import './Login.css';
 
@@ -93,6 +94,9 @@ const Login: React.FC<LoginProps> = ({ setIsAuthenticated }) => {
               required
               disabled={loading}
             />
+            <Link to="/forgot-password" className="forgot-password-link">
+              パスワード忘れ？
+            </Link>
           </div>
 
           <button 
@@ -104,10 +108,8 @@ const Login: React.FC<LoginProps> = ({ setIsAuthenticated }) => {
           </button>
         </form>
 
-        <div className="login-footer">
-          <p>テスト用アカウント</p>
-          <p>Email: admin@mindstatus.com</p>
-          <p>Password: Admin123!</p>
+        <div className="register-link">
+          <Link to="/register">管理者アカウント作成</Link>
         </div>
       </div>
     </div>

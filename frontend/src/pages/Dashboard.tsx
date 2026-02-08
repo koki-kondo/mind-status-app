@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
 
@@ -14,6 +15,7 @@ interface StatusLog {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
+  const navigate = useNavigate();
   const [statusLogs, setStatusLogs] = useState<StatusLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [newStatus, setNewStatus] = useState('GREEN');
@@ -101,9 +103,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
     <div className="dashboard-container">
       <header className="dashboard-header">
         <h1>Mind Status</h1>
-        <button onClick={handleLogout} className="logout-button">
-          ログアウト
-        </button>
+        <div className="header-actions">
+          <button onClick={() => navigate('/change-password')} className="change-pw-button">
+            🔐 PW変更
+          </button>
+          <button onClick={handleLogout} className="logout-button">
+            ログアウト
+          </button>
+        </div>
       </header>
 
       <div className="dashboard-content">
@@ -117,7 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
                 className={`status-btn status-green ${newStatus === 'GREEN' ? 'active' : ''}`}
                 onClick={() => setNewStatus('GREEN')}
               >
-                <span className="status-icon">😊</span>
+                <span className="status-icon">〇</span>
                 <span>健康</span>
               </button>
               <button
@@ -125,7 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
                 className={`status-btn status-yellow ${newStatus === 'YELLOW' ? 'active' : ''}`}
                 onClick={() => setNewStatus('YELLOW')}
               >
-                <span className="status-icon">😐</span>
+                <span className="status-icon">△</span>
                 <span>注意</span>
               </button>
               <button
@@ -133,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
                 className={`status-btn status-red ${newStatus === 'RED' ? 'active' : ''}`}
                 onClick={() => setNewStatus('RED')}
               >
-                <span className="status-icon">😞</span>
+                <span className="status-icon">✕</span>
                 <span>警告</span>
               </button>
             </div>
@@ -144,7 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
                 id="comment"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="今日の気分や体調について..."
+                placeholder="今日の気分や悩み事など..."
                 rows={4}
               />
             </div>

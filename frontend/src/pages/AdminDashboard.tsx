@@ -33,7 +33,12 @@ interface UserStatus {
   id: string;
   full_name: string;
   email: string;
+  // 企業用
   department: string;
+  position: string;
+  // 学校用
+  grade: number | null;
+  class_name: string;
   latest_status: string | null;
   latest_comment: string | null;
   latest_date: string | null;
@@ -51,6 +56,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
   const [userStatuses, setUserStatuses] = useState<UserStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [orgType, setOrgType] = useState<'SCHOOL' | 'COMPANY'>('COMPANY'); // 組織タイプ
   
   // フィルタ用state
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -71,15 +77,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
       const token = localStorage.getItem('access_token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [summaryRes, alertsRes, usersRes] = await Promise.all([
+      const [summaryRes, alertsRes, usersRes, userInfoRes] = await Promise.all([
         axios.get('/api/status/dashboard_summary/', { headers }),
         axios.get('/api/status/alerts/', { headers }),
-        axios.get('/api/status/user_latest_status/', { headers })
+        axios.get('/api/status/user_latest_status/', { headers }),
+        axios.get('/api/users/', { headers }) // 自分の情報を取得
       ]);
 
       setSummary(summaryRes.data);
       setAlerts(alertsRes.data);
       setUserStatuses(usersRes.data);
+      
+      // 組織タイプを設定
+      const currentUser = userInfoRes.data.results?.[0] || userInfoRes.data[0];
+      if (currentUser?.organization_type) {
+        setOrgType(currentUser.organization_type);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -97,16 +111,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
     try {
       const token = localStorage.getItem('access_token');
       
-      // URLパラメータを構築
       const params = new URLSearchParams();
       
-      // 期間指定
       if (startDate && endDate) {
         params.append('start_date', startDate);
         params.append('end_date', endDate);
       }
       
-      // フィルタ条件を追加
       if (departmentFilter !== 'all') {
         params.append('department', departmentFilter);
       }
@@ -120,24 +131,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
       const url = `/api/status/export_csv/?${params.toString()}`;
       
       const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       });
 
-      // ダウンロード処理
       const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = blobUrl;
       
-      // ファイル名を決定
       let filename;
       if (startDate && endDate) {
-        filename = `user_status_${startDate}_${endDate}.csv`;
+        filename = `user_status_${startDate}_${endDate}.xlsx`;
       } else {
         const date = new Date().toISOString().split('T')[0];
-        filename = `user_status_latest_${date}.csv`;
+        filename = `user_status_latest_${date}.xlsx`;
       }
       
       link.setAttribute('download', filename);
@@ -146,13 +153,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
       
-      // 期間選択を閉じる
       setShowDatePicker(false);
       setStartDate('');
       setEndDate('');
     } catch (error) {
-      console.error('CSV出力に失敗しました:', error);
-      alert('CSV出力に失敗しました');
+      console.error('Excel出力に失敗しました:', error);
+      alert('Excel出力に失敗しました');
     }
   };
 
@@ -173,21 +179,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
   // フィルタ適用
   const filteredUsers = userStatuses.filter(user => {
-    // 部署フィルタ
-    if (departmentFilter !== 'all' && user.department !== departmentFilter) {
-      return false;
-    }
-    
-    // ステータスフィルタ
-    if (statusFilter !== 'all' && user.latest_status !== statusFilter) {
-      return false;
-    }
-    
-    // 検索フィルタ
-    if (searchQuery && !user.full_name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    
+    if (departmentFilter !== 'all' && user.department !== departmentFilter) return false;
+    if (statusFilter !== 'all' && user.latest_status !== statusFilter) return false;
+    if (searchQuery && !user.full_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
@@ -210,265 +204,288 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
   }
 
   return (
-    <div className="admin-dashboard">
-      <header className="admin-header">
-        <h1>Mind Status - 管理者ダッシュボード</h1>
-        <button onClick={handleLogout} className="logout-button">
-          ログアウト
-        </button>
-      </header>
-
-      <div className="admin-content">
-        {/* ナビゲーションタブ */}
-        <div className="admin-tabs">
-          <button 
-            className={`tab-button ${!showBulkUpload ? 'active' : ''}`}
-            onClick={() => setShowBulkUpload(false)}
-          >
-            📊 ダッシュボード
+    <>
+      <div className="admin-dashboard">
+        <header className="admin-header">
+          <h1>Mind Status - 管理者ダッシュボード</h1>
+          <button onClick={handleLogout} className="logout-button">
+            ログアウト
           </button>
-          <button 
-            className={`tab-button ${showBulkUpload ? 'active' : ''}`}
-            onClick={() => setShowBulkUpload(true)}
-          >
-            📤 ユーザー一括登録
-          </button>
-        </div>
+        </header>
 
-        {/* 一括登録画面 */}
-        {showBulkUpload ? (
-          <UserBulkUpload />
-        ) : (
-          <>
-        {/* サマリーカード */}
-        <div className="summary-cards">
-          <div className="summary-card">
-            <div className="card-icon">👥</div>
-            <div className="card-content">
-              <h3>登録ユーザー数</h3>
-              <p className="card-number">{summary?.total_users || 0}</p>
-            </div>
+        <div className="admin-content">
+          {/* ナビゲーションタブ */}
+          <div className="admin-tabs">
+            <button 
+              className={`tab-button ${!showBulkUpload ? 'active' : ''}`}
+              onClick={() => setShowBulkUpload(false)}
+            >
+              📊 ダッシュボード
+            </button>
+            <button 
+              className={`tab-button ${showBulkUpload ? 'active' : ''}`}
+              onClick={() => setShowBulkUpload(true)}
+            >
+              📤 ユーザー一括登録
+            </button>
           </div>
 
-          <div className="summary-card">
-            <div className="card-icon">✅</div>
-            <div className="card-content">
-              <h3>本日の記録数</h3>
-              <p className="card-number">{summary?.today_recorded || 0}</p>
-            </div>
-          </div>
-
-          <div className="summary-card alert-card">
-            <div className="card-icon">🚨</div>
-            <div className="card-content">
-              <h3>警告アラート</h3>
-              <p className="card-number">{summary?.red_alerts || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-grid">
-          {/* 円グラフ */}
-          <section className="chart-section">
-            <h2>本日のステータス分布</h2>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="no-data">本日のデータがありません</p>
-            )}
-          </section>
-
-          {/* アラート一覧 */}
-          <section className="alerts-section">
-            <h2>🚨 警告アラート ({alerts.length}件)</h2>
-            {alerts.length > 0 ? (
-              <div className="alerts-list">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="alert-item">
-                    <div className="alert-header">
-                      <strong>{alert.user_name}</strong>
-                      <span className="alert-dept">{alert.department}</span>
-                    </div>
-                    {alert.comment && (
-                      <p className="alert-comment">{alert.comment}</p>
-                    )}
-                    <span className="alert-time">
-                      {new Date(alert.created_at).toLocaleString('ja-JP')}
-                    </span>
+          {/* 一括登録画面 */}
+          {showBulkUpload ? (
+            <UserBulkUpload />
+          ) : (
+            <>
+              {/* サマリーカード */}
+              <div className="summary-cards">
+                <div className="summary-card">
+                  <div className="card-icon">👥</div>
+                  <div className="card-content">
+                    <h3>登録ユーザー数</h3>
+                    <p className="card-number">{summary?.total_users || 0}</p>
                   </div>
-                ))}
+                </div>
+
+                <div className="summary-card">
+                  <div className="card-icon">✅</div>
+                  <div className="card-content">
+                    <h3>本日の記録数</h3>
+                    <p className="card-number">{summary?.today_recorded || 0}</p>
+                  </div>
+                </div>
+
+                <div className="summary-card alert-card">
+                  <div className="card-icon">🚨</div>
+                  <div className="card-content">
+                    <h3>警告アラート</h3>
+                    <p className="card-number">{summary?.red_alerts || 0}</p>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <p className="no-data">警告アラートはありません</p>
-            )}
-          </section>
-        </div>
 
-        {/* 時系列グラフ */}
-        <div className="trend-section">
-          <StatusTrend />
-        </div>
-
-        {/* ユーザー一覧 */}
-        <section className="users-section">
-          <div className="users-section-header">
-            <h2>全ユーザーステータス</h2>
-            <div className="export-controls">
-              <button 
-                onClick={() => setShowDatePicker(!showDatePicker)} 
-                className="export-button period-toggle"
-              >
-                📅 期間指定出力
-              </button>
-              <button onClick={handleExportCSV} className="export-button">
-                📥 最新CSV出力
-              </button>
-            </div>
-          </div>
-          
-          {/* 期間選択UI */}
-          {showDatePicker && (
-            <div className="date-picker-container">
-              <div className="date-picker-group">
-                <label>開始日:</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <div className="date-picker-group">
-                <label>終了日:</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <button 
-                onClick={handleExportCSV} 
-                disabled={!startDate || !endDate}
-                className="export-button execute-btn"
-              >
-                📥 期間指定で出力
-              </button>
-            </div>
-          )}
-          
-          {/* フィルタUI */}
-          <div className="filters-container">
-            <div className="filter-group">
-              <label>部署:</label>
-              <select 
-                value={departmentFilter} 
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">全て</option>
-                {departments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="filter-group">
-              <label>ステータス:</label>
-              <select 
-                value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">全て</option>
-                <option value="GREEN">健康</option>
-                <option value="YELLOW">注意</option>
-                <option value="RED">警告</option>
-              </select>
-            </div>
-
-            <div className="filter-group search-group">
-              <label>検索:</label>
-              <input
-                type="text"
-                placeholder="名前で検索..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="filter-search"
-              />
-            </div>
-
-            <div className="filter-results">
-              {filteredUsers.length}件 / {userStatuses.length}件
-            </div>
-          </div>
-
-          <div className="users-table-container">
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th>氏名</th>
-                  <th>所属</th>
-                  <th>最新ステータス</th>
-                  <th>コメント</th>
-                  <th>記録日時</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.full_name}</td>
-                    <td>{user.department || '-'}</td>
-                    <td>
-                      {user.latest_status ? (
-                        <span
-                          className="status-badge"
-                          style={{ backgroundColor: getStatusColor(user.latest_status) }}
+              <div className="dashboard-grid">
+                {/* 円グラフ */}
+                <section className="chart-section">
+                  <h2>本日のステータス分布</h2>
+                  {chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="value"
                         >
-                          {getStatusLabel(user.latest_status)}
-                        </span>
-                      ) : (
-                        <span className="status-badge-gray">未記録</span>
-                      )}
-                    </td>
-                    <td className="comment-cell">
-                      {user.latest_comment || '-'}
-                    </td>
-                    <td className="date-cell">
-                      {user.latest_date 
-                        ? new Date(user.latest_date).toLocaleString('ja-JP')
-                        : '-'
-                      }
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        </>
-        )}
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="no-data">本日のデータがありません</p>
+                  )}
+                </section>
+
+                {/* アラート一覧 */}
+                <section className="alerts-section">
+                  <h2>🚨 警告アラート ({alerts.length}件)</h2>
+                  {alerts.length > 0 ? (
+                    <div className="alerts-list">
+                      {alerts.map((alert) => (
+                        <div key={alert.id} className="alert-item">
+                          <div className="alert-header">
+                            <strong>{alert.user_name}</strong>
+                            <span className="alert-dept">{alert.department}</span>
+                          </div>
+                          {alert.comment && (
+                            <p className="alert-comment">{alert.comment}</p>
+                          )}
+                          <span className="alert-time">
+                            {new Date(alert.created_at).toLocaleString('ja-JP')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="no-data">警告アラートはありません</p>
+                  )}
+                </section>
+              </div>
+
+              {/* 時系列グラフ */}
+              <div className="trend-section">
+                <StatusTrend />
+              </div>
+
+              {/* ユーザー一覧 */}
+              <section className="users-section">
+                <div className="users-section-header">
+                  <h2>全ユーザーステータス</h2>
+                  <div className="export-controls">
+                    <button 
+                      onClick={() => setShowDatePicker(!showDatePicker)} 
+                      className="export-button period-toggle"
+                    >
+                      📅 期間指定出力
+                    </button>
+                    <button onClick={handleExportCSV} className="export-button">
+                      📥 最新Excel出力
+                    </button>
+                  </div>
+                </div>
+                
+                {/* 期間選択UI */}
+                {showDatePicker && (
+                  <div className="date-picker-container">
+                    <div className="date-picker-group">
+                      <label>開始日:</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="date-input"
+                      />
+                    </div>
+                    <div className="date-picker-group">
+                      <label>終了日:</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="date-input"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleExportCSV} 
+                      disabled={!startDate || !endDate}
+                      className="export-button execute-btn"
+                    >
+                      📥 期間指定で出力
+                    </button>
+                  </div>
+                )}
+                
+                {/* フィルタUI */}
+                <div className="filters-container">
+                  <div className="filter-group">
+                    <label>部署:</label>
+                    <select 
+                      value={departmentFilter} 
+                      onChange={(e) => setDepartmentFilter(e.target.value)}
+                      className="filter-select"
+                    >
+                      <option value="all">全て</option>
+                      {departments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="filter-group">
+                    <label>ステータス:</label>
+                    <select 
+                      value={statusFilter} 
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="filter-select"
+                    >
+                      <option value="all">全て</option>
+                      <option value="GREEN">健康</option>
+                      <option value="YELLOW">注意</option>
+                      <option value="RED">警告</option>
+                    </select>
+                  </div>
+
+                  <div className="filter-group search-group">
+                    <label>検索:</label>
+                    <input
+                      type="text"
+                      placeholder="名前で検索..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="filter-search"
+                    />
+                  </div>
+
+                  <div className="filter-results">
+                    {filteredUsers.length}件 / {userStatuses.length}件
+                  </div>
+                </div>
+
+                <div className="users-table-container">
+                  <table className="users-table">
+                    <thead>
+                      <tr>
+                        <th>氏名</th>
+                        {orgType === 'SCHOOL' ? (
+                          <>
+                            <th>学年</th>
+                            <th>組・クラス</th>
+                          </>
+                        ) : (
+                          <>
+                            <th>所属・部署</th>
+                            <th>役職</th>
+                          </>
+                        )}
+                        <th>最新ステータス</th>
+                        <th>コメント</th>
+                        <th>記録日時</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.full_name}</td>
+                          {orgType === 'SCHOOL' ? (
+                            <>
+                              <td>{user.grade || '-'}</td>
+                              <td>{user.class_name || '-'}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td>{user.department || '-'}</td>
+                              <td>{user.position || '-'}</td>
+                            </>
+                          )}
+                          <td>
+                            {user.latest_status ? (
+                              <span
+                                className="status-badge"
+                                style={{ backgroundColor: getStatusColor(user.latest_status) }}
+                              >
+                                {getStatusLabel(user.latest_status)}
+                              </span>
+                            ) : (
+                              <span className="status-badge-gray">未記録</span>
+                            )}
+                          </td>
+                          <td className="comment-cell">
+                            {user.latest_comment || '-'}
+                          </td>
+                          <td className="date-cell">
+                            {user.latest_date 
+                              ? new Date(user.latest_date).toLocaleString('ja-JP')
+                              : '-'
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+    </>
   );
 };
 

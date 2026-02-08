@@ -41,37 +41,80 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=http_status.HTTP_403_FORBIDDEN
             )
         
-        csv_file = request.FILES.get('file')
-        if not csv_file:
+        upload_file = request.FILES.get('file')
+        if not upload_file:
             return Response(
                 {'error': 'ファイルが選択されていません'},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
-        # CSVファイルの検証
-        if not csv_file.name.endswith('.csv'):
+        # CSV/Excelファイルの検証
+        file_ext = upload_file.name.lower().split('.')[-1]
+        if file_ext not in ['csv', 'xlsx', 'xls']:
             return Response(
-                {'error': 'CSVファイルのみアップロード可能です'},
+                {'error': 'CSV または Excel ファイルのみアップロード可能です'},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
         import csv
         import io
         
-        # CSVファイルを読み込み
+        # ファイル読み込み
         try:
-            decoded_file = csv_file.read().decode('utf-8-sig')  # BOM付きUTF-8対応
-            csv_reader = csv.DictReader(io.StringIO(decoded_file))
+            rows = []
+            
+            # Excel形式の場合
+            if file_ext in ['xlsx', 'xls']:
+                from openpyxl import load_workbook
+                
+                # Excelファイルを読み込み
+                wb = load_workbook(upload_file, data_only=True)
+                
+                # 組織タイプに応じて適切なシートを選択
+                org_type = request.user.organization.org_type
+                
+                if org_type == 'SCHOOL':
+                    # 学校向けテンプレートシートを探す
+                    if '学校向けテンプレート' in wb.sheetnames:
+                        ws = wb['学校向けテンプレート']
+                    else:
+                        # シート名がない場合は最初のシート
+                        ws = wb.worksheets[0]
+                else:  # COMPANY
+                    # 企業向けテンプレートシートを探す
+                    if '企業向けテンプレート' in wb.sheetnames:
+                        ws = wb['企業向けテンプレート']
+                    elif len(wb.worksheets) > 1:
+                        # 2シート目があれば企業向けと判定
+                        ws = wb.worksheets[1]
+                    else:
+                        # シートが1つだけの場合
+                        ws = wb.worksheets[0]
+                
+                # ヘッダー行を取得（2行目が英語キー）
+                headers = [cell.value for cell in ws[2]]
+                
+                # データ行を読み込み（3行目以降）
+                for row in ws.iter_rows(min_row=3, values_only=True):
+                    if any(row):  # 空行をスキップ
+                        row_dict = {headers[i]: (row[i] if i < len(row) else '') for i in range(len(headers))}
+                        rows.append(row_dict)
+            
+            # CSV形式の場合
+            else:
+                decoded_file = upload_file.read().decode('utf-8-sig')  # BOM付きUTF-8対応
+                csv_reader = csv.DictReader(io.StringIO(decoded_file))
+                rows = list(csv_reader)
             
             success_count = 0
             error_count = 0
             errors = []
             
-            for row_num, row in enumerate(csv_reader, start=2):  # ヘッダー行=1なので2から
+            for row_num, row in enumerate(rows, start=3 if file_ext in ['xlsx', 'xls'] else 2):
                 try:
-                    # 必須項目チェック
-                    email = row.get('email', '').strip()
-                    full_name = row.get('full_name', '').strip()
+                    # 必須項目チェック（Excelの空白セルはNoneになるのでstr()でラップ）
+                    email = str(row.get('email') or '').strip()
+                    full_name = str(row.get('full_name') or '').strip()
                     
                     if not email or not full_name:
                         errors.append({
@@ -92,21 +135,74 @@ class UserViewSet(viewsets.ModelViewSet):
                         continue
                     
                     # ユーザー作成
+                    from datetime import datetime
+                    
+                    # 生年月日のパース（Excelの空白セルはNone）
+                    birth_date = None
+                    birth_date_str = str(row.get('birth_date') or '').strip()
+                    if birth_date_str:
+                        try:
+                            birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
+                        except ValueError:
+                            pass  # 無効な日付形式の場合はNone
+                    
+                    # 性別の大文字変換（MALE/FEMALE/OTHER）
+                    gender = str(row.get('gender') or '').strip().upper() or None
+                    
                     user = User.objects.create_user(
                         email=email,
                         full_name=full_name,
-                        full_name_kana=row.get('full_name_kana', '').strip() or None,
+                        full_name_kana=str(row.get('full_name_kana') or '').strip() or None,
                         organization=request.user.organization,
                         role='USER',
-                        is_activated=True,
-                        password=User.objects.make_random_password(length=12),
-                        department=row.get('department', '').strip() or None,
-                        gender=row.get('gender', '').strip() or None,
-                        employee_number=row.get('employee_number', '').strip() or None,
-                        grade=int(row.get('grade', 0)) if row.get('grade', '').strip() else None,
-                        class_name=row.get('class_name', '').strip() or None,
-                        attendance_number=int(row.get('attendance_number', 0)) if row.get('attendance_number', '').strip() else None,
+                        is_activated=False,  # 招待承認前は未アクティブ
+                        password=User.objects.make_random_password(length=12),  # 仮パスワード
+                        gender=gender,
+                        birth_date=birth_date,
+                        # 企業用フィールド
+                        employee_number=str(row.get('employee_number') or '').strip() or None,
+                        department=str(row.get('department') or '').strip() or None,
+                        position=str(row.get('position') or '').strip() or None,
+                        # 学校用フィールド
+                        student_number=str(row.get('student_number') or '').strip() or None,
+                        grade=int(str(row.get('grade') or '0').strip()) if str(row.get('grade') or '').strip() else None,
+                        class_name=str(row.get('class_name') or '').strip() or None,
+                        attendance_number=int(str(row.get('attendance_number') or '0').strip()) if str(row.get('attendance_number') or '').strip() else None,
                     )
+                    
+                    # 招待トークン生成
+                    from .models import InviteToken
+                    invite_token = InviteToken.objects.create(
+                        user=user,
+                        expires_at=timezone.now() + timedelta(days=7)  # 7日間有効
+                    )
+                    
+                    # 招待メール送信
+                    from django.core.mail import send_mail
+                    from django.conf import settings
+                    
+                    invite_url = f"{settings.FRONTEND_URL}/invite/{invite_token.token}"
+                    
+                    send_mail(
+                        subject='Mind Status への招待',
+                        message=f'''
+{user.full_name} 様
+
+Mind Status へようこそ!
+
+以下のURLからパスワードを設定してアカウントを有効化してください:
+{invite_url}
+
+※このリンクは7日間有効です。
+
+---
+Mind Status 運営チーム
+''',
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[user.email],
+                        fail_silently=False,
+                    )
+                    
                     success_count += 1
                     
                 except Exception as e:
@@ -128,36 +224,378 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=http_status.HTTP_400_BAD_REQUEST
             )
     
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def verify_invite(self, request):
+        """招待トークンの検証"""
+        token_str = request.query_params.get('token')
+        
+        if not token_str:
+            return Response(
+                {'error': 'トークンが指定されていません'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from .models import InviteToken
+            invite_token = InviteToken.objects.select_related('user').get(token=token_str)
+            
+            if not invite_token.is_valid():
+                return Response(
+                    {'error': 'このトークンは無効または期限切れです'},
+                    status=http_status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({
+                'valid': True,
+                'user': {
+                    'email': invite_token.user.email,
+                    'full_name': invite_token.user.full_name
+                }
+            })
+            
+        except InviteToken.DoesNotExist:
+            return Response(
+                {'error': 'トークンが見つかりません'},
+                status=http_status.HTTP_404_NOT_FOUND
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def set_password_with_invite(self, request):
+        """招待トークンを使ってパスワードを設定"""
+        token_str = request.data.get('token')
+        password = request.data.get('password')
+        
+        if not token_str or not password:
+            return Response(
+                {'error': 'トークンとパスワードが必要です'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from .models import InviteToken
+            invite_token = InviteToken.objects.select_related('user').get(token=token_str)
+            
+            if not invite_token.is_valid():
+                return Response(
+                    {'error': 'このトークンは無効または期限切れです'},
+                    status=http_status.HTTP_400_BAD_REQUEST
+                )
+            
+            # パスワード設定
+            user = invite_token.user
+            user.set_password(password)
+            user.is_activated = True
+            user.save()
+            
+            # トークンを使用済みに
+            invite_token.is_used = True
+            invite_token.save()
+            
+            return Response({
+                'success': True,
+                'message': 'パスワードが設定されました。ログインしてください。'
+            })
+            
+        except InviteToken.DoesNotExist:
+            return Response(
+                {'error': 'トークンが見つかりません'},
+                status=http_status.HTTP_404_NOT_FOUND
+            )
+    
+    # ─── パスワード変更（ログイン済みユーザー） ─────────────────
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def change_password(self, request):
+        """ログイン済みユーザーがパスワードを変更する"""
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response(
+                {'error': '現在のパスワードと新しいパスワードが必要です'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        user = request.user
+        
+        # 現在のパスワード検証
+        if not user.check_password(current_password):
+            return Response(
+                {'error': '現在のパスワードが正しくありません'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 新しいパスワード強度チェック
+        error = self._validate_password_strength(new_password)
+        if error:
+            return Response({'error': error}, status=http_status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({'success': True, 'message': 'パスワードが変更されました'})
+    
+    # ─── パスワードリセット要求（メール送信） ────────────────────
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def request_password_reset(self, request):
+        """パスワード忘れ時にリセットURLをメールで送信"""
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {'error': 'メールアドレスが必要です'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        # ユーザーが存在するか確認（存在しなくても同じレスポンスを返す：列挙攻撃対策）
+        try:
+            user = User.objects.get(email=email, is_activated=True)
+        except User.DoesNotExist:
+            # あえて成功レスポンスを返す
+            return Response({
+                'success': True,
+                'message': 'メールアドレスが登録されている場合、リセットリンクが送られます'
+            })
+        
+        # リセットトークン生成（InviteTokenを再利用）
+        from .models import InviteToken
+        reset_token = InviteToken.objects.create(
+            user=user,
+            expires_at=timezone.now() + timedelta(hours=1)  # 1時間有効
+        )
+        
+        # リセットメール送信
+        from django.core.mail import send_mail
+        from django.conf import settings
+        
+        reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset_token.token}"
+        
+        send_mail(
+            subject='Mind Status - パスワードリセット',
+            message=f'''{user.full_name} 様
+
+パスワードリセットの申し込みを受け付けました。
+
+以下のURLからパスワードを再設定してください:
+{reset_url}
+
+※このリンクは1時間有効です。
+※このメールに覚えがない場合は無視してください。
+
+---
+Mind Status 運営チーム
+''',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'メールアドレスが登録されている場合、リセットリンクが送られます'
+        })
+    
+    # ─── パスワード再設定（リセットトークン使用） ────────────────
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def reset_password(self, request):
+        """リセットトークンを使ってパスワードを再設定"""
+        token_str = request.data.get('token')
+        new_password = request.data.get('password')
+        
+        if not token_str or not new_password:
+            return Response(
+                {'error': 'トークンとパスワードが必要です'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from .models import InviteToken
+            token_obj = InviteToken.objects.select_related('user').get(token=token_str)
+            
+            if not token_obj.is_valid():
+                return Response(
+                    {'error': 'このトークンは無効または期限切れです'},
+                    status=http_status.HTTP_400_BAD_REQUEST
+                )
+            
+            # パスワード強度チェック
+            error = self._validate_password_strength(new_password)
+            if error:
+                return Response({'error': error}, status=http_status.HTTP_400_BAD_REQUEST)
+            
+            # パスワード再設定
+            user = token_obj.user
+            user.set_password(new_password)
+            user.save()
+            
+            # トークンを使用済みに
+            token_obj.is_used = True
+            token_obj.save()
+            
+            return Response({
+                'success': True,
+                'message': 'パスワードが再設定されました。ログインしてください。'
+            })
+            
+        except InviteToken.DoesNotExist:
+            return Response(
+                {'error': 'トークンが見つかりません'},
+                status=http_status.HTTP_404_NOT_FOUND
+            )
+    
+    # ─── パスワード強度チェック（共通） ───────────────────────────
+    def _validate_password_strength(self, password: str) -> str:
+        """パスワード強度を検証。エラーメッセージを返す。問題なければ空文字列"""
+        if len(password) < 8:
+            return 'パスワードは8文字以上で設定してください'
+        if not any(c.isupper() for c in password):
+            return 'パスワードには大文字を含めてください'
+        if not any(c.islower() for c in password):
+            return 'パスワードには小文字を含めてください'
+        if not any(c.isdigit() for c in password):
+            return 'パスワードには数字を含めてください'
+        return ''
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def csv_template(self, request):
-        """CSVテンプレートダウンロード"""
+        """Excelテンプレートダウンロード（学校用・企業用2シート構成）"""
         if request.user.role != 'ADMIN':
             return Response(
                 {'error': '管理者のみアクセス可能です'},
                 status=http_status.HTTP_403_FORBIDDEN
             )
         
-        import csv
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
         from django.http import HttpResponse
+        import io
         
-        # CSVレスポンス作成
-        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-        response['Content-Disposition'] = 'attachment; filename="user_template.csv"'
+        # Excelワークブック作成
+        wb = Workbook()
         
-        writer = csv.writer(response)
+        # ─── シート1: 学校向け ───
+        ws_school = wb.active
+        ws_school.title = '学校向けテンプレート'
         
-        # 組織タイプに応じてヘッダーを変更
-        org = request.user.organization
-        if org.org_type == 'COMPANY':
-            writer.writerow(['email', 'full_name', 'full_name_kana', 'department', 'gender', 'employee_number'])
-            writer.writerow(['tanaka@example.com', '田中太郎', 'タナカタロウ', '営業部', 'male', 'E001'])
-            writer.writerow(['suzuki@example.com', '鈴木花子', 'スズキハナコ', '人事部', 'female', 'E002'])
-        else:  # SCHOOL
-            writer.writerow(['email', 'full_name', 'full_name_kana', 'grade', 'class_name', 'attendance_number', 'gender'])
-            writer.writerow(['tanaka@example.com', '田中太郎', 'タナカタロウ', '1', 'A組', '1', 'male'])
-            writer.writerow(['suzuki@example.com', '鈴木花子', 'スズキハナコ', '1', 'A組', '2', 'female'])
+        # ヘッダー行（学校用）
+        school_headers = ['student_number', 'full_name', 'full_name_kana', 'grade', 'class_name', 'gender', 'birth_date', 'email']
+        school_headers_jp = ['学籍番号', '氏名', 'フリガナ', '学年', '組・クラス', '性別', '生年月日', 'メールアドレス']
+        
+        # 日本語ヘッダー（1行目）
+        for col_num, header in enumerate(school_headers_jp, 1):
+            cell = ws_school.cell(row=1, column=col_num, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # 英語キー（2行目）
+        for col_num, header in enumerate(school_headers, 1):
+            cell = ws_school.cell(row=2, column=col_num, value=header)
+            cell.font = Font(italic=True, color="666666")
+            cell.fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+        
+        # サンプルデータ（学校）
+        school_samples = [
+            ['S2024001', '田中太郎', 'タナカタロウ', '1', 'A組', 'MALE', '2010-04-15', 'tanaka@example.com'],
+            ['S2024002', '鈴木花子', 'スズキハナコ', '1', 'A組', 'FEMALE', '2010-08-22', 'suzuki@example.com'],
+        ]
+        for row_num, sample in enumerate(school_samples, 3):
+            for col_num, value in enumerate(sample, 1):
+                ws_school.cell(row=row_num, column=col_num, value=value)
+        
+        # 列幅調整
+        ws_school.column_dimensions['A'].width = 15
+        ws_school.column_dimensions['B'].width = 15
+        ws_school.column_dimensions['C'].width = 18
+        ws_school.column_dimensions['D'].width = 8
+        ws_school.column_dimensions['E'].width = 12
+        ws_school.column_dimensions['F'].width = 10
+        ws_school.column_dimensions['G'].width = 15
+        ws_school.column_dimensions['H'].width = 25
+        
+        # ─── シート2: 企業向け ───
+        ws_company = wb.create_sheet(title='企業向けテンプレート')
+        
+        # ヘッダー行（企業用）
+        company_headers = ['employee_number', 'full_name', 'full_name_kana', 'department', 'position', 'gender', 'birth_date', 'email']
+        company_headers_jp = ['社員番号', '氏名', 'フリガナ', '所属・部署', '役職', '性別', '生年月日', 'メールアドレス']
+        
+        # 日本語ヘッダー（1行目）
+        for col_num, header in enumerate(company_headers_jp, 1):
+            cell = ws_company.cell(row=1, column=col_num, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # 英語キー（2行目）
+        for col_num, header in enumerate(company_headers, 1):
+            cell = ws_company.cell(row=2, column=col_num, value=header)
+            cell.font = Font(italic=True, color="666666")
+            cell.fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+        
+        # サンプルデータ（企業）
+        company_samples = [
+            ['E001', '田中太郎', 'タナカタロウ', '営業部', '課長', 'MALE', '1985-04-15', 'tanaka@example.com'],
+            ['E002', '鈴木花子', 'スズキハナコ', '人事部', '主任', 'FEMALE', '1990-08-22', 'suzuki@example.com'],
+        ]
+        for row_num, sample in enumerate(company_samples, 3):
+            for col_num, value in enumerate(sample, 1):
+                ws_company.cell(row=row_num, column=col_num, value=value)
+        
+        # 列幅調整
+        ws_company.column_dimensions['A'].width = 15
+        ws_company.column_dimensions['B'].width = 15
+        ws_company.column_dimensions['C'].width = 18
+        ws_company.column_dimensions['D'].width = 15
+        ws_company.column_dimensions['E'].width = 12
+        ws_company.column_dimensions['F'].width = 10
+        ws_company.column_dimensions['G'].width = 15
+        ws_company.column_dimensions['H'].width = 25
+        
+        # Excelファイルとして出力
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="user_template.xlsx"'
         
         return response
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def register_admin(self, request):
+        """管理者登録API（組織とアカウントを同時作成）"""
+        from .serializers import AdminRegistrationSerializer
+        
+        serializer = AdminRegistrationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            try:
+                user = serializer.save()
+                
+                return Response({
+                    'success': True,
+                    'message': '管理者アカウントが作成されました。ログインしてください。',
+                    'user': {
+                        'email': user.email,
+                        'full_name': user.full_name,
+                        'organization': user.organization.name,
+                        'org_type': user.organization.org_type
+                    }
+                }, status=http_status.HTTP_201_CREATED)
+                
+            except Exception as e:
+                return Response(
+                    {'error': f'アカウント作成に失敗しました: {str(e)}'},
+                    status=http_status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(
+            {'errors': serializer.errors},
+            status=http_status.HTTP_400_BAD_REQUEST
+        )
 
 
 class StatusLogViewSet(viewsets.ModelViewSet):
@@ -321,20 +759,17 @@ class StatusLogViewSet(viewsets.ModelViewSet):
         for user in users:
             latest_log = StatusLog.objects.filter(user=user).order_by('-created_at').first()
             
-            # 所属を正しく表示
-            if organization.org_type == 'COMPANY':
-                department = user.department or '-'
-            else:  # SCHOOL
-                if user.grade and user.class_name:
-                    department = f'{user.grade}年{user.class_name}'
-                else:
-                    department = '-'
-            
             user_status_list.append({
                 'id': str(user.id),
                 'full_name': user.full_name,
                 'email': user.email,
-                'department': department,
+                # 企業用
+                'department': user.department or '',
+                'position': user.position or '',
+                # 学校用
+                'grade': user.grade,
+                'class_name': user.class_name or '',
+                # ステータス
                 'latest_status': latest_log.status if latest_log else None,
                 'latest_comment': latest_log.comment if latest_log else None,
                 'latest_date': latest_log.created_at.isoformat() if latest_log else None
@@ -402,19 +837,24 @@ class StatusLogViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def export_csv(self, request):
-        """ユーザーステータスをCSV出力（管理者用・期間指定可能）"""
+        """ユーザーステータスをExcel/CSV出力（管理者用・期間指定可能）"""
         if request.user.role != 'ADMIN':
             return Response(
                 {'error': '管理者のみアクセス可能です'},
                 status=http_status.HTTP_403_FORBIDDEN
             )
         
-        import csv
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
         from django.http import HttpResponse
         from datetime import datetime
         import pytz
+        import io
         
         organization = request.user.organization
+        
+        # 出力形式（デフォルトはExcel）
+        output_format = request.query_params.get('format', 'xlsx')
         
         # 期間パラメータ取得
         start_date_str = request.query_params.get('start_date')
@@ -460,55 +900,67 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             
             logs = logs.select_related('user').order_by('user__full_name', 'created_at')
             
-            # CSVレスポンス作成
-            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-            filename = f'user_status_{start_date}_{end_date}.csv'
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
-            writer = csv.writer(response)
-            
-            # ヘッダー行
-            writer.writerow([
-                '氏名',
-                '氏名カナ',
-                'メールアドレス',
-                '所属',
-                'ステータス',
-                'コメント',
-                '記録日時'
-            ])
-            
-            # データ行
-            for log in logs:
-                # 所属を正しく表示
-                if organization.org_type == 'COMPANY':
-                    department = log.user.department or '-'
-                else:  # SCHOOL
-                    if log.user.grade and log.user.class_name:
-                        department = f'{log.user.grade}年{log.user.class_name}'
-                    else:
-                        department = '-'
+            # Excel形式
+            if output_format == 'xlsx':
+                wb = Workbook()
+                ws = wb.active
+                ws.title = 'ステータス記録'
                 
-                # ステータスラベル
-                status_labels = {
-                    'GREEN': '健康',
-                    'YELLOW': '注意',
-                    'RED': '警告'
-                }
-                status_label = status_labels.get(log.status, log.status)
+                # ヘッダー行（組織タイプ別）
+                if organization.org_type == 'SCHOOL':
+                    headers = ['氏名', '学年', '組・クラス', 'ステータス', 'コメント', '記録日時']
+                else:  # COMPANY
+                    headers = ['氏名', '所属・部署', '役職', 'ステータス', 'コメント', '記録日時']
                 
-                writer.writerow([
-                    log.user.full_name,
-                    log.user.full_name_kana or '-',
-                    log.user.email,
-                    department,
-                    status_label,
-                    log.comment or '-',
-                    log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S')
-                ])
+                for col_num, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col_num, value=header)
+                    cell.font = Font(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                    cell.alignment = Alignment(horizontal="center")
+                
+                # データ行
+                status_labels = {'GREEN': '健康', 'YELLOW': '注意', 'RED': '警告'}
+                
+                for row_num, log in enumerate(logs, 2):
+                    if organization.org_type == 'SCHOOL':
+                        ws.cell(row=row_num, column=1, value=log.user.full_name)
+                        ws.cell(row=row_num, column=2, value=log.user.grade or '-')
+                        ws.cell(row=row_num, column=3, value=log.user.class_name or '-')
+                        ws.cell(row=row_num, column=4, value=status_labels.get(log.status, log.status))
+                        ws.cell(row=row_num, column=5, value=log.comment or '-')
+                        ws.cell(row=row_num, column=6, value=log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S'))
+                    else:  # COMPANY
+                        ws.cell(row=row_num, column=1, value=log.user.full_name)
+                        ws.cell(row=row_num, column=2, value=log.user.department or '-')
+                        ws.cell(row=row_num, column=3, value=log.user.position or '-')
+                        ws.cell(row=row_num, column=4, value=status_labels.get(log.status, log.status))
+                        ws.cell(row=row_num, column=5, value=log.comment or '-')
+                        ws.cell(row=row_num, column=6, value=log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S'))
+                
+                # 列幅調整
+                ws.column_dimensions['A'].width = 15
+                ws.column_dimensions['B'].width = 12
+                ws.column_dimensions['C'].width = 12
+                ws.column_dimensions['D'].width = 12
+                ws.column_dimensions['E'].width = 40
+                ws.column_dimensions['F'].width = 20
+                
+                # Excelファイルとして出力
+                output = io.BytesIO()
+                wb.save(output)
+                output.seek(0)
+                
+                response = HttpResponse(
+                    output.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                filename = f'user_status_{start_date}_{end_date}.xlsx'
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                
+                return response
         
         else:
-            # 最新ステータスモード（従来の機能）
+            # 最新ステータスモード
             # フィルタパラメータ取得
             department_filter = request.query_params.get('department')
             status_filter = request.query_params.get('status')
@@ -528,58 +980,71 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             
             users = users.order_by('full_name')
             
-            # CSVレスポンス作成
-            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-            response['Content-Disposition'] = 'attachment; filename="user_status_latest.csv"'
-            
-            writer = csv.writer(response)
-            
-            # ヘッダー行
-            writer.writerow([
-                '氏名',
-                '氏名カナ',
-                'メールアドレス',
-                '所属',
-                '最新ステータス',
-                'コメント',
-                '記録日時'
-            ])
-            
-            # データ行
-            for user in users:
-                latest_log = StatusLog.objects.filter(user=user).order_by('-created_at').first()
+            # Excel形式
+            if output_format == 'xlsx':
+                wb = Workbook()
+                ws = wb.active
+                ws.title = '最新ステータス'
                 
-                # ステータスフィルタを適用
-                if status_filter and status_filter != 'all':
-                    if not latest_log or latest_log.status != status_filter:
-                        continue  # このユーザーはスキップ
+                # ヘッダー行（組織タイプ別）
+                if organization.org_type == 'SCHOOL':
+                    headers = ['氏名', '学年', '組・クラス', '最新ステータス', 'コメント', '記録日時']
+                else:  # COMPANY
+                    headers = ['氏名', '所属・部署', '役職', '最新ステータス', 'コメント', '記録日時']
                 
-                # 所属を正しく表示
-                if organization.org_type == 'COMPANY':
-                    department = user.department or '-'
-                else:  # SCHOOL
-                    if user.grade and user.class_name:
-                        department = f'{user.grade}年{user.class_name}'
-                    else:
-                        department = '-'
+                for col_num, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col_num, value=header)
+                    cell.font = Font(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
+                    cell.alignment = Alignment(horizontal="center")
                 
-                # ステータスラベル
-                status_labels = {
-                    'GREEN': '健康',
-                    'YELLOW': '注意',
-                    'RED': '警告'
-                }
-                status_label = status_labels.get(latest_log.status, '未記録') if latest_log else '未記録'
+                # データ行
+                status_labels = {'GREEN': '健康', 'YELLOW': '注意', 'RED': '警告'}
                 
-                writer.writerow([
-                    user.full_name,
-                    user.full_name_kana or '-',
-                    user.email,
-                    department,
-                    status_label,
-                    latest_log.comment if latest_log else '-',
-                    latest_log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S') if latest_log else '-'
-                ])
-        
-        return response
+                row_num = 2
+                for user in users:
+                    latest_log = StatusLog.objects.filter(user=user).order_by('-created_at').first()
+                    
+                    # ステータスフィルタを適用
+                    if status_filter and status_filter != 'all':
+                        if not latest_log or latest_log.status != status_filter:
+                            continue
+                    
+                    if organization.org_type == 'SCHOOL':
+                        ws.cell(row=row_num, column=1, value=user.full_name)
+                        ws.cell(row=row_num, column=2, value=user.grade or '-')
+                        ws.cell(row=row_num, column=3, value=user.class_name or '-')
+                        ws.cell(row=row_num, column=4, value=status_labels.get(latest_log.status, '-') if latest_log else '-')
+                        ws.cell(row=row_num, column=5, value=latest_log.comment if latest_log else '-')
+                        ws.cell(row=row_num, column=6, value=latest_log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S') if latest_log else '-')
+                    else:  # COMPANY
+                        ws.cell(row=row_num, column=1, value=user.full_name)
+                        ws.cell(row=row_num, column=2, value=user.department or '-')
+                        ws.cell(row=row_num, column=3, value=user.position or '-')
+                        ws.cell(row=row_num, column=4, value=status_labels.get(latest_log.status, '-') if latest_log else '-')
+                        ws.cell(row=row_num, column=5, value=latest_log.comment if latest_log else '-')
+                        ws.cell(row=row_num, column=6, value=latest_log.created_at.astimezone(jst).strftime('%Y-%m-%d %H:%M:%S') if latest_log else '-')
+                    
+                    row_num += 1
+                
+                # 列幅調整
+                ws.column_dimensions['A'].width = 15
+                ws.column_dimensions['B'].width = 12
+                ws.column_dimensions['C'].width = 12
+                ws.column_dimensions['D'].width = 12
+                ws.column_dimensions['E'].width = 40
+                ws.column_dimensions['F'].width = 20
+                
+                # Excelファイルとして出力
+                output = io.BytesIO()
+                wb.save(output)
+                output.seek(0)
+                
+                response = HttpResponse(
+                    output.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = 'attachment; filename="user_status_latest.xlsx"'
+                
+                return response
 

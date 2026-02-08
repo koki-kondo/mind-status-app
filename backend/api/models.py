@@ -91,14 +91,17 @@ class User(AbstractUser):
     full_name = models.CharField('氏名', max_length=100)
     full_name_kana = models.CharField('氏名カナ', max_length=100, null=True, blank=True)
     gender = models.CharField('性別', max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    birth_date = models.DateField('生年月日', null=True, blank=True)
     
     # 企業用フィールド
     employee_number = models.CharField('社員番号', max_length=50, null=True, blank=True)
-    department = models.CharField('部署・チーム', max_length=100, null=True, blank=True)
+    department = models.CharField('部署・所属', max_length=100, null=True, blank=True)
+    position = models.CharField('役職', max_length=100, null=True, blank=True)
     
     # 学校用フィールド
+    student_number = models.CharField('学籍番号', max_length=50, null=True, blank=True)
     grade = models.IntegerField('学年', null=True, blank=True)
-    class_name = models.CharField('クラス', max_length=50, null=True, blank=True)
+    class_name = models.CharField('組・クラス', max_length=50, null=True, blank=True)
     attendance_number = models.IntegerField('出席番号', null=True, blank=True)
     
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
