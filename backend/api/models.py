@@ -99,10 +99,9 @@ class User(AbstractUser):
     position = models.CharField('役職', max_length=100, null=True, blank=True)
     
     # 学校用フィールド
-    student_number = models.CharField('学籍番号', max_length=50, null=True, blank=True)
+    student_number = models.CharField('学籍番号・出席番号', max_length=50, null=True, blank=True)
     grade = models.IntegerField('学年', null=True, blank=True)
     class_name = models.CharField('組・クラス', max_length=50, null=True, blank=True)
-    attendance_number = models.IntegerField('出席番号', null=True, blank=True)
     
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)

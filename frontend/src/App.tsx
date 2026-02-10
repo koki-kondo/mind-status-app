@@ -13,27 +13,82 @@ import './App.css';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(false);
   const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [isLoadingRole, setIsLoadingRole] = React.useState<boolean>(true);
 
   React.useEffect(() => {
-    // ローカルストレージからトークンを確認
     const token = localStorage.getItem('access_token');
-    const role = localStorage.getItem('user_role');
-    if (token) {
-      setIsAuthenticated(true);
-      setUserRole(role);
+    
+    if (!token) {
+      // トークンがない場合は即座にローディング終了
+      setIsLoadingRole(false);
+      return;
     }
+
+    // トークンがある場合のみAPIを呼び出す
+    fetch('/api/users/me/', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to fetch user role');
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.role) {
+          // 認証成功: role を設定してからローディング終了
+          setIsAuthenticated(true);
+          setUserRole(data.role);
+          localStorage.setItem('user_role', data.role);
+        } else {
+          // role が取得できない場合はログアウト
+          handleLogout();
+        }
+        setIsLoadingRole(false);
+      })
+      .catch(error => {
+        console.error('Failed to fetch user role:', error);
+        // エラー時はログアウト
+        handleLogout();
+        setIsLoadingRole(false);
+      });
   }, []);
 
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserRole(null);
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  };
+
   const handleSetAuthenticated = (value: boolean, role?: string) => {
-    setIsAuthenticated(value);
-    if (role) {
+    if (value && role) {
+      // ログイン成功
+      setIsAuthenticated(true);
       setUserRole(role);
       localStorage.setItem('user_role', role);
     } else {
-      setUserRole(null);
-      localStorage.removeItem('user_role');
+      // ログアウト
+      handleLogout();
     }
   };
+
+  // role取得中はローディング表示
+  if (isLoadingRole) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        読み込み中...
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -46,7 +101,7 @@ function App() {
           <Route 
             path="/login" 
             element={
-              isAuthenticated ? <Navigate to="/dashboard" /> : <Login setIsAuthenticated={handleSetAuthenticated} />
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login setIsAuthenticated={handleSetAuthenticated} />
             } 
           />
           <Route 
@@ -66,24 +121,37 @@ function App() {
             element={
               isAuthenticated
                 ? <ChangePasswordPage setIsAuthenticated={handleSetAuthenticated} />
-                : <Navigate to="/login" />
+                : <Navigate to="/login" replace />
             } 
           />
           <Route 
             path="/dashboard" 
             element={
-              isAuthenticated ? (
-                userRole === 'ADMIN' ? (
-                  <AdminDashboard setIsAuthenticated={(value) => handleSetAuthenticated(value)} />
-                ) : (
-                  <Dashboard setIsAuthenticated={(value) => handleSetAuthenticated(value)} />
-                )
+              !isAuthenticated ? (
+                <Navigate to="/login" replace />
+              ) : userRole === 'ADMIN' ? (
+                <Navigate to="/admin" replace />
               ) : (
-                <Navigate to="/login" />
+                <Dashboard setIsAuthenticated={handleSetAuthenticated} />
               )
             } 
           />
-          <Route path="/" element={<Navigate to="/login" />} />
+          <Route 
+            path="/admin" 
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/login" replace />
+              ) : userRole === 'ADMIN' ? (
+                <AdminDashboard setIsAuthenticated={handleSetAuthenticated} />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            } 
+          />
+          <Route 
+            path="/" 
+            element={<Navigate to="/dashboard" replace />} 
+          />
         </Routes>
       </div>
     </Router>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import UserBulkUpload from '../components/UserBulkUpload';
@@ -51,15 +52,19 @@ const COLORS = {
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) => {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [userStatuses, setUserStatuses] = useState<UserStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [orgType, setOrgType] = useState<'SCHOOL' | 'COMPANY'>('COMPANY'); // 組織タイプ
+  const [userId, setUserId] = useState<string>(''); // 自分のユーザーID
   
   // フィルタ用state
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  const [gradeFilter, setGradeFilter] = useState<string>('all'); // 学年フィルター
+  const [classFilter, setClassFilter] = useState<string>('all'); // クラスフィルター
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -81,17 +86,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
         axios.get('/api/status/dashboard_summary/', { headers }),
         axios.get('/api/status/alerts/', { headers }),
         axios.get('/api/status/user_latest_status/', { headers }),
-        axios.get('/api/users/', { headers }) // 自分の情報を取得
+        axios.get('/api/users/me/', { headers }) // 自分の情報を取得
       ]);
 
       setSummary(summaryRes.data);
       setAlerts(alertsRes.data);
       setUserStatuses(usersRes.data);
       
-      // 組織タイプを設定
-      const currentUser = userInfoRes.data.results?.[0] || userInfoRes.data[0];
-      if (currentUser?.organization_type) {
-        setOrgType(currentUser.organization_type);
+      // 組織タイプとユーザーIDを設定
+      const currentUser = userInfoRes.data;
+      if (currentUser) {
+        if (currentUser.organization_type) {
+          setOrgType(currentUser.organization_type);
+        }
+        if (currentUser.id) {
+          setUserId(currentUser.id);
+        }
       }
       
       setLoading(false);
@@ -105,6 +115,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setIsAuthenticated(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('本当に自分のアカウントを削除しますか？\nこの操作は取り消せません。\n組織の全データも削除される可能性があります。')) {
+      return;
+    }
+
+    if (!window.confirm('最終確認：本当に削除してよろしいですか？')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.delete(`/api/users/${userId}/delete_user/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      alert('アカウントを削除しました');
+      handleLogout();
+    } catch (error: any) {
+      console.error('アカウント削除に失敗しました:', error);
+      if (error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('アカウントの削除に失敗しました');
+      }
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!window.confirm(`本当に ${userName} さんを削除しますか？\nこの操作は取り消せません。`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.delete(`/api/users/${userId}/delete_user/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      alert(`${userName} さんを削除しました`);
+      fetchDashboardData(); // データを再取得
+    } catch (error: any) {
+      console.error('ユーザー削除に失敗しました:', error);
+      if (error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('ユーザーの削除に失敗しました');
+      }
+    }
   };
 
   const handleExportCSV = async () => {
@@ -179,7 +239,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
   // フィルタ適用
   const filteredUsers = userStatuses.filter(user => {
-    if (departmentFilter !== 'all' && user.department !== departmentFilter) return false;
+    // 企業向けフィルター
+    if (orgType === 'COMPANY' && departmentFilter !== 'all' && user.department !== departmentFilter) return false;
+    
+    // 学校向けフィルター
+    if (orgType === 'SCHOOL') {
+      if (gradeFilter !== 'all' && user.grade?.toString() !== gradeFilter) return false;
+      if (classFilter !== 'all' && user.class_name !== classFilter) return false;
+    }
+    
     if (statusFilter !== 'all' && user.latest_status !== statusFilter) return false;
     if (searchQuery && !user.full_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -187,6 +255,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
   // 部署一覧を取得（ユニーク）
   const departments = Array.from(new Set(userStatuses.map(u => u.department).filter(d => d && d !== '-')));
+  
+  // 学年一覧を取得（ユニーク）
+  const grades = Array.from(new Set(userStatuses.map(u => u.grade).filter((g): g is number => g !== null && g !== undefined))).sort((a, b) => a - b);
+  
+  // クラス一覧を取得（ユニーク）
+  const classes = Array.from(new Set(userStatuses.map(u => u.class_name).filter(c => c && c !== '-')));
 
   // 円グラフ用データ
   const chartData = summary ? [
@@ -208,9 +282,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
       <div className="admin-dashboard">
         <header className="admin-header">
           <h1>Mind Status - 管理者ダッシュボード</h1>
-          <button onClick={handleLogout} className="logout-button">
-            ログアウト
-          </button>
+          <div className="header-actions">
+            <button onClick={() => navigate('/change-password')} className="change-pw-button">
+              🔐 PW変更
+            </button>
+            <button onClick={handleDeleteAccount} className="delete-account-button">
+              🗑️ アカウント削除
+            </button>
+            <button onClick={handleLogout} className="logout-button">
+              ログアウト
+            </button>
+          </div>
         </header>
 
         <div className="admin-content">
@@ -232,7 +314,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
           {/* 一括登録画面 */}
           {showBulkUpload ? (
-            <UserBulkUpload />
+            <UserBulkUpload onSuccess={fetchDashboardData} />
           ) : (
             <>
               {/* サマリーカード */}
@@ -373,19 +455,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
                 
                 {/* フィルタUI */}
                 <div className="filters-container">
-                  <div className="filter-group">
-                    <label>部署:</label>
-                    <select 
-                      value={departmentFilter} 
-                      onChange={(e) => setDepartmentFilter(e.target.value)}
-                      className="filter-select"
-                    >
-                      <option value="all">全て</option>
-                      {departments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {orgType === 'COMPANY' ? (
+                    <div className="filter-group">
+                      <label>部署:</label>
+                      <select 
+                        value={departmentFilter} 
+                        onChange={(e) => setDepartmentFilter(e.target.value)}
+                        className="filter-select"
+                      >
+                        <option value="all">全て</option>
+                        {departments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="filter-group">
+                        <label>学年:</label>
+                        <select 
+                          value={gradeFilter} 
+                          onChange={(e) => setGradeFilter(e.target.value)}
+                          className="filter-select"
+                        >
+                          <option value="all">全て</option>
+                          {grades.map(grade => (
+                            <option key={grade} value={grade.toString()}>{grade}年</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <label>組・クラス:</label>
+                        <select 
+                          value={classFilter} 
+                          onChange={(e) => setClassFilter(e.target.value)}
+                          className="filter-select"
+                        >
+                          <option value="all">全て</option>
+                          {classes.map(cls => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
 
                   <div className="filter-group">
                     <label>ステータス:</label>
@@ -436,6 +550,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
                         <th>最新ステータス</th>
                         <th>コメント</th>
                         <th>記録日時</th>
+                        <th>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -473,6 +588,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
                               ? new Date(user.latest_date).toLocaleString('ja-JP')
                               : '-'
                             }
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleDeleteUser(user.id, user.full_name)}
+                              className="delete-user-button"
+                              title="ユーザーを削除"
+                            >
+                              🗑️ 削除
+                            </button>
                           </td>
                         </tr>
                       ))}

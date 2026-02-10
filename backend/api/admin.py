@@ -25,7 +25,7 @@ class UserAdmin(BaseUserAdmin):
         ('個人情報', {'fields': ('full_name', 'full_name_kana', 'gender')}),
         ('組織情報', {'fields': ('organization', 'role', 'is_activated')}),
         ('企業用', {'fields': ('employee_number', 'department')}),
-        ('学校用', {'fields': ('grade', 'class_name', 'attendance_number')}),
+        ('学校用', {'fields': ('student_number', 'grade', 'class_name')}),
         ('権限', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('日時', {'fields': ('last_login', 'created_at', 'updated_at')}),
     )

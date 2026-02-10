@@ -29,17 +29,17 @@ const Login: React.FC<LoginProps> = ({ setIsAuthenticated }) => {
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
       
-      // ユーザー情報を取得
-      const userResponse = await axios.get('/api/users/', {
+      // 自分の情報を取得（/api/users/me/ を使用）
+      const userResponse = await axios.get('/api/users/me/', {
         headers: {
           Authorization: `Bearer ${response.data.access}`
         }
       });
       
-      // 自分の情報を取得（配列の最初）
-      const user = userResponse.data.results?.[0] || userResponse.data[0];
+      // 自分の情報を取得
+      const user = userResponse.data;
       
-      if (user) {
+      if (user && user.role) {
         setIsAuthenticated(true, user.role);
       } else {
         setIsAuthenticated(true);

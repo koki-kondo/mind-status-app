@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './UserBulkUpload.css';
 
+interface UserBulkUploadProps {
+  onSuccess?: () => void;
+}
+
 interface UploadResult {
   success_count: number;
   error_count: number;
@@ -12,7 +16,7 @@ interface UploadResult {
   }>;
 }
 
-const UserBulkUpload: React.FC = () => {
+const UserBulkUpload: React.FC<UserBulkUploadProps> = ({ onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -74,6 +78,16 @@ const UserBulkUpload: React.FC = () => {
       if (response.data.error_count === 0) {
         alert(`${response.data.success_count}件のユーザーを登録しました！`);
         setFile(null);
+        
+        // 親コンポーネントに成功を通知
+        if (onSuccess) {
+          onSuccess();
+        }
+      } else if (response.data.success_count > 0) {
+        // 一部成功の場合も通知
+        if (onSuccess) {
+          onSuccess();
+        }
       }
     } catch (error: any) {
       console.error('アップロードに失敗しました:', error);

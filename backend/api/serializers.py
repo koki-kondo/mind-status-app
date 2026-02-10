@@ -29,7 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
             # 企業用
             'employee_number', 'department', 'position',
             # 学校用
-            'student_number', 'grade', 'class_name', 'attendance_number',
+            'student_number', 'grade', 'class_name',
             'created_at'
         ]
         read_only_fields = ['id', 'created_at']

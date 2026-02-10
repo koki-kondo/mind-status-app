@@ -20,10 +20,27 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
   const [loading, setLoading] = useState(true);
   const [newStatus, setNewStatus] = useState('GREEN');
   const [newComment, setNewComment] = useState('');
+  const [userId, setUserId] = useState<string>('');
 
   useEffect(() => {
     fetchStatusLogs();
+    fetchUserInfo();
   }, []);
+
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('/api/users/me/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const user = response.data;
+      if (user && user.id) {
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user info:', error);
+    }
+  };
 
   const fetchStatusLogs = async () => {
     try {
@@ -73,6 +90,33 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('本当にアカウントを削除しますか？\nこの操作は取り消せません。\n全てのステータス記録も削除されます。')) {
+      return;
+    }
+
+    if (!window.confirm('最終確認：本当に削除してよろしいですか？')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.delete(`/api/users/${userId}/delete_user/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      alert('アカウントを削除しました');
+      handleLogout();
+    } catch (error: any) {
+      console.error('アカウント削除に失敗しました:', error);
+      if (error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('アカウントの削除に失敗しました');
+      }
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'GREEN':
@@ -106,6 +150,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
         <div className="header-actions">
           <button onClick={() => navigate('/change-password')} className="change-pw-button">
             🔐 PW変更
+          </button>
+          <button onClick={handleDeleteAccount} className="delete-account-button">
+            🗑️ アカウント削除
           </button>
           <button onClick={handleLogout} className="logout-button">
             ログアウト

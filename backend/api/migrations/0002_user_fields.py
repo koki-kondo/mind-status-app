@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, choices=[('MALE', '男性'), ('FEMALE', '女性'), ('OTHER', 'その他')], max_length=10, null=True, verbose_name='性別'),
         ),
         
-        # 新フィールド追加
+        # 新フィールド追加（attendance_numberは追加しない）
         migrations.AddField(
             model_name='user',
             name='birth_date',
@@ -56,6 +56,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='user',
             name='student_number',
-            field=models.CharField(blank=True, max_length=50, null=True, verbose_name='学籍番号'),
+            field=models.CharField(blank=True, max_length=50, null=True, verbose_name='学籍番号・出席番号'),
         ),
     ]

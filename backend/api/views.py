@@ -32,6 +32,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(organization=user.organization)
         return User.objects.filter(id=user.id)
     
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def me(self, request):
+        """現在ログイン中のユーザー情報を取得"""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+    
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def bulk_upload(self, request):
         """CSV一括登録"""
@@ -125,14 +131,21 @@ class UserViewSet(viewsets.ModelViewSet):
                         continue
                     
                     # メールアドレス重複チェック
-                    if User.objects.filter(email=email).exists():
-                        errors.append({
-                            'row': row_num,
-                            'email': email,
-                            'error': 'このメールアドレスは既に登録されています'
-                        })
-                        error_count += 1
-                        continue
+                    existing_user = User.objects.filter(email=email).first()
+                    
+                    if existing_user:
+                        if existing_user.is_activated:
+                            # 既にアクティブ化済み → エラー
+                            errors.append({
+                                'row': row_num,
+                                'email': email,
+                                'error': 'このメールアドレスは既に登録されています'
+                            })
+                            error_count += 1
+                            continue
+                        else:
+                            # 未アクティブ → 削除して再登録
+                            existing_user.delete()
                     
                     # ユーザー作成
                     from datetime import datetime
@@ -167,7 +180,6 @@ class UserViewSet(viewsets.ModelViewSet):
                         student_number=str(row.get('student_number') or '').strip() or None,
                         grade=int(str(row.get('grade') or '0').strip()) if str(row.get('grade') or '').strip() else None,
                         class_name=str(row.get('class_name') or '').strip() or None,
-                        attendance_number=int(str(row.get('attendance_number') or '0').strip()) if str(row.get('attendance_number') or '').strip() else None,
                     )
                     
                     # 招待トークン生成
@@ -478,7 +490,7 @@ Mind Status 運営チーム
         
         # ヘッダー行（学校用）
         school_headers = ['student_number', 'full_name', 'full_name_kana', 'grade', 'class_name', 'gender', 'birth_date', 'email']
-        school_headers_jp = ['学籍番号', '氏名', 'フリガナ', '学年', '組・クラス', '性別', '生年月日', 'メールアドレス']
+        school_headers_jp = ['学籍番号・出席番号', '氏名', 'フリガナ', '学年', '組・クラス', '性別', '生年月日', 'メールアドレス']
         
         # 日本語ヘッダー（1行目）
         for col_num, header in enumerate(school_headers_jp, 1):
@@ -503,14 +515,14 @@ Mind Status 運営チーム
                 ws_school.cell(row=row_num, column=col_num, value=value)
         
         # 列幅調整
-        ws_school.column_dimensions['A'].width = 15
-        ws_school.column_dimensions['B'].width = 15
-        ws_school.column_dimensions['C'].width = 18
-        ws_school.column_dimensions['D'].width = 8
-        ws_school.column_dimensions['E'].width = 12
-        ws_school.column_dimensions['F'].width = 10
-        ws_school.column_dimensions['G'].width = 15
-        ws_school.column_dimensions['H'].width = 25
+        ws_school.column_dimensions['A'].width = 18  # 学籍番号・出席番号
+        ws_school.column_dimensions['B'].width = 15  # 氏名
+        ws_school.column_dimensions['C'].width = 18  # フリガナ
+        ws_school.column_dimensions['D'].width = 8   # 学年
+        ws_school.column_dimensions['E'].width = 12  # 組・クラス
+        ws_school.column_dimensions['F'].width = 10  # 性別
+        ws_school.column_dimensions['G'].width = 15  # 生年月日
+        ws_school.column_dimensions['H'].width = 25  # メールアドレス
         
         # ─── シート2: 企業向け ───
         ws_company = wb.create_sheet(title='企業向けテンプレート')
@@ -596,6 +608,43 @@ Mind Status 運営チーム
             {'errors': serializer.errors},
             status=http_status.HTTP_400_BAD_REQUEST
         )
+    
+    @action(detail=True, methods=['delete'], permission_classes=[permissions.IsAuthenticated])
+    def delete_user(self, request, pk=None):
+        """ユーザー削除API（管理者または本人のみ）"""
+        try:
+            user_to_delete = User.objects.get(pk=pk)
+            
+            # 権限チェック
+            if request.user.role == 'ADMIN':
+                # 管理者: 同じ組織のユーザーを削除可能（自分自身も含む）
+                if user_to_delete.organization != request.user.organization:
+                    return Response(
+                        {'error': '他の組織のユーザーは削除できません'},
+                        status=http_status.HTTP_403_FORBIDDEN
+                    )
+            else:
+                # 一般ユーザー: 自分自身のみ削除可能
+                if user_to_delete.id != request.user.id:
+                    return Response(
+                        {'error': '他のユーザーを削除する権限がありません'},
+                        status=http_status.HTTP_403_FORBIDDEN
+                    )
+            
+            # 削除実行
+            user_email = user_to_delete.email
+            user_to_delete.delete()
+            
+            return Response({
+                'success': True,
+                'message': f'ユーザー {user_email} を削除しました'
+            }, status=http_status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'ユーザーが見つかりません'},
+                status=http_status.HTTP_404_NOT_FOUND
+            )
 
 
 class StatusLogViewSet(viewsets.ModelViewSet):
