@@ -97,7 +97,7 @@ const StatusTrend: React.FC = () => {
   return (
     <div className="trend-container">
       <div className="trend-header">
-        <h2>📈 ステータス推移</h2>
+        <h2>ステータス推移</h2>
         <div className="period-selector">
           <button 
             className={`period-btn ${selectedDays === 7 ? 'active' : ''}`}

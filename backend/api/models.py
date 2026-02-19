@@ -83,7 +83,9 @@ class User(AbstractUser):
         Organization, 
         on_delete=models.CASCADE, 
         related_name='users',
-        verbose_name='所属組織'
+        verbose_name='所属組織',
+        null=True,  # システム管理者は組織未所属でもOK
+        blank=True
     )
     is_activated = models.BooleanField('アカウント有効化済み', default=False)
     

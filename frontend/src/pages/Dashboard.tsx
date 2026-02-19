@@ -149,10 +149,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
         <h1>Mind Status</h1>
         <div className="header-actions">
           <button onClick={() => navigate('/change-password')} className="change-pw-button">
-            🔐 PW変更
+            パスワード変更
           </button>
           <button onClick={handleDeleteAccount} className="delete-account-button">
-            🗑️ アカウント削除
+            アカウント削除
           </button>
           <button onClick={handleLogout} className="logout-button">
             ログアウト

@@ -16,15 +16,15 @@ class OrganizationAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'full_name', 'role', 'organization', 'is_activated', 'created_at']
-    list_filter = ['role', 'is_activated', 'organization', 'created_at']
+    list_display = ['email', 'full_name', 'organization', 'role', 'is_activated', 'created_at']
+    list_filter = ['organization', 'role', 'is_activated', 'created_at']
     search_fields = ['email', 'full_name', 'employee_number']
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('個人情報', {'fields': ('full_name', 'full_name_kana', 'gender')}),
+        ('個人情報', {'fields': ('full_name', 'full_name_kana', 'gender', 'birth_date')}),
         ('組織情報', {'fields': ('organization', 'role', 'is_activated')}),
-        ('企業用', {'fields': ('employee_number', 'department')}),
+        ('企業用', {'fields': ('employee_number', 'department', 'position')}),
         ('学校用', {'fields': ('student_number', 'grade', 'class_name')}),
         ('権限', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('日時', {'fields': ('last_login', 'created_at', 'updated_at')}),

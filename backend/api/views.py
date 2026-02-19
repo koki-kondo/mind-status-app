@@ -5,10 +5,10 @@ Views for Mind Status API.
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
-from rest_framework import viewsets, permissions, status as http_status
+from rest_framework import viewsets, permissions, status as http_status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Organization, User, StatusLog
+from .models import Organization, User, StatusLog, InviteToken
 from .serializers import OrganizationSerializer, UserSerializer, StatusLogSerializer
 
 
@@ -40,7 +40,37 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def bulk_upload(self, request):
-        """CSV一括登録"""
+        """CSV一括登録（セキュリティ強化版）"""
+        
+        def format_serializer_errors(errors):
+            """
+            Serializer のエラーを読みやすい文字列に整形
+            
+            例:
+            {'email': [ErrorDetail(string='このメールアドレスを持ったユーザーが既に存在します。', code='unique')]}
+            → 'このメールアドレスを持ったユーザーが既に存在します。'
+            
+            複数エラー時:
+            {'email': [...], 'grade': [...]}
+            → 'このメールアドレスを持ったユーザーが既に存在します。 / 学年は1〜12の範囲で入力してください'
+            """
+            if isinstance(errors, dict):
+                messages = []
+                for field, error_list in errors.items():
+                    if isinstance(error_list, list):
+                        for error in error_list:
+                            # ErrorDetail オブジェクトから文字列を抽出
+                            error_str = str(error) if hasattr(error, '__str__') else error
+                            # フィールド名は含めない
+                            messages.append(error_str)
+                    else:
+                        # フィールド名は含めない
+                        messages.append(str(error_list))
+                return ' / '.join(messages)
+            else:
+                return str(errors)
+        
+        # 権限チェック
         if request.user.role != 'ADMIN':
             return Response(
                 {'error': '管理者のみアクセス可能です'},
@@ -54,16 +84,21 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
-        # CSV/Excelファイルの検証
-        file_ext = upload_file.name.lower().split('.')[-1]
-        if file_ext not in ['csv', 'xlsx', 'xls']:
+        # ファイル検証（validators.py）
+        from .validators import validate_bulk_upload_file, validate_bulk_upload_row
+        from .serializers import BulkUploadUserSerializer
+        from django.db import transaction
+        
+        try:
+            validate_bulk_upload_file(upload_file)
+        except serializers.ValidationError as e:
             return Response(
-                {'error': 'CSV または Excel ファイルのみアップロード可能です'},
+                {'error': str(e)},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
-        import csv
-        import io
+        # ファイル拡張子
+        file_ext = upload_file.name.lower().split('.')[-1]
         
         # ファイル読み込み
         try:
@@ -73,129 +108,126 @@ class UserViewSet(viewsets.ModelViewSet):
             if file_ext in ['xlsx', 'xls']:
                 from openpyxl import load_workbook
                 
-                # Excelファイルを読み込み
                 wb = load_workbook(upload_file, data_only=True)
-                
-                # 組織タイプに応じて適切なシートを選択
                 org_type = request.user.organization.org_type
                 
+                # シート選択
                 if org_type == 'SCHOOL':
-                    # 学校向けテンプレートシートを探す
-                    if '学校向けテンプレート' in wb.sheetnames:
-                        ws = wb['学校向けテンプレート']
-                    else:
-                        # シート名がない場合は最初のシート
-                        ws = wb.worksheets[0]
-                else:  # COMPANY
-                    # 企業向けテンプレートシートを探す
-                    if '企業向けテンプレート' in wb.sheetnames:
-                        ws = wb['企業向けテンプレート']
-                    elif len(wb.worksheets) > 1:
-                        # 2シート目があれば企業向けと判定
-                        ws = wb.worksheets[1]
-                    else:
-                        # シートが1つだけの場合
-                        ws = wb.worksheets[0]
+                    ws = wb['学校向けテンプレート'] if '学校向けテンプレート' in wb.sheetnames else wb.worksheets[0]
+                else:
+                    ws = wb['企業向けテンプレート'] if '企業向けテンプレート' in wb.sheetnames else (wb.worksheets[1] if len(wb.worksheets) > 1 else wb.worksheets[0])
                 
-                # ヘッダー行を取得（2行目が英語キー）
+                # ヘッダー取得（2行目）
                 headers = [cell.value for cell in ws[2]]
                 
-                # データ行を読み込み（3行目以降）
+                # データ行読み込み（3行目以降）
                 for row in ws.iter_rows(min_row=3, values_only=True):
-                    if any(row):  # 空行をスキップ
-                        row_dict = {headers[i]: (row[i] if i < len(row) else '') for i in range(len(headers))}
+                    if any(row):
+                        row_dict = {headers[i]: (row[i] if i < len(row) else None) for i in range(len(headers))}
                         rows.append(row_dict)
             
             # CSV形式の場合
             else:
-                decoded_file = upload_file.read().decode('utf-8-sig')  # BOM付きUTF-8対応
+                import csv
+                import io
+                decoded_file = upload_file.read().decode('utf-8-sig')
                 csv_reader = csv.DictReader(io.StringIO(decoded_file))
                 rows = list(csv_reader)
             
-            success_count = 0
-            error_count = 0
-            errors = []
-            
-            for row_num, row in enumerate(rows, start=3 if file_ext in ['xlsx', 'xls'] else 2):
-                try:
-                    # 必須項目チェック（Excelの空白セルはNoneになるのでstr()でラップ）
-                    email = str(row.get('email') or '').strip()
-                    full_name = str(row.get('full_name') or '').strip()
-                    
-                    if not email or not full_name:
-                        errors.append({
+        except Exception as e:
+            return Response(
+                {'error': f'ファイルの読み込みに失敗しました: {str(e)}'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 一括登録処理（行単位でエラーハンドリング）
+        success_list = []
+        error_list = []
+        
+        for row_num, row in enumerate(rows, start=3 if file_ext in ['xlsx', 'xls'] else 2):
+            try:
+                # 1. ホワイトリスト検証
+                validated_row = validate_bulk_upload_row(
+                    row,
+                    request.user.organization.org_type,
+                    row_num
+                )
+                
+                email = validated_row.get('email', '').lower().strip()
+                
+                # 既存ユーザーを検索（未アクティブのみ更新対象）
+                existing_user = User.objects.filter(
+                    email=email,
+                    organization=request.user.organization,
+                    is_activated=False  # 未アクティブのみ
+                ).first()
+                
+                if existing_user:
+                    # 未アクティブユーザーは更新
+                    serializer = BulkUploadUserSerializer(
+                        existing_user,
+                        data=validated_row,
+                        context={'organization': request.user.organization},  # 重複チェック用
+                        partial=True
+                    )
+                    if not serializer.is_valid():
+                        error_list.append({
                             'row': row_num,
-                            'error': '必須項目が入力されていません（email, full_name）'
+                            'email': email,
+                            'error': format_serializer_errors(serializer.errors)
                         })
-                        error_count += 1
                         continue
                     
-                    # メールアドレス重複チェック
-                    existing_user = User.objects.filter(email=email).first()
-                    
-                    if existing_user:
-                        if existing_user.is_activated:
-                            # 既にアクティブ化済み → エラー
-                            errors.append({
-                                'row': row_num,
-                                'email': email,
-                                'error': 'このメールアドレスは既に登録されています'
-                            })
-                            error_count += 1
-                            continue
-                        else:
-                            # 未アクティブ → 削除して再登録
-                            existing_user.delete()
-                    
-                    # ユーザー作成
-                    from datetime import datetime
-                    
-                    # 生年月日のパース（Excelの空白セルはNone）
-                    birth_date = None
-                    birth_date_str = str(row.get('birth_date') or '').strip()
-                    if birth_date_str:
-                        try:
-                            birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
-                        except ValueError:
-                            pass  # 無効な日付形式の場合はNone
-                    
-                    # 性別の大文字変換（MALE/FEMALE/OTHER）
-                    gender = str(row.get('gender') or '').strip().upper() or None
-                    
-                    user = User.objects.create_user(
-                        email=email,
-                        full_name=full_name,
-                        full_name_kana=str(row.get('full_name_kana') or '').strip() or None,
+                    user = serializer.save(
                         organization=request.user.organization,
                         role='USER',
-                        is_activated=False,  # 招待承認前は未アクティブ
-                        password=User.objects.make_random_password(length=12),  # 仮パスワード
-                        gender=gender,
-                        birth_date=birth_date,
-                        # 企業用フィールド
-                        employee_number=str(row.get('employee_number') or '').strip() or None,
-                        department=str(row.get('department') or '').strip() or None,
-                        position=str(row.get('position') or '').strip() or None,
-                        # 学校用フィールド
-                        student_number=str(row.get('student_number') or '').strip() or None,
-                        grade=int(str(row.get('grade') or '0').strip()) if str(row.get('grade') or '').strip() else None,
-                        class_name=str(row.get('class_name') or '').strip() or None,
+                        is_activated=False,
+                        is_staff=False,
+                        is_superuser=False
                     )
                     
-                    # 招待トークン生成
-                    from .models import InviteToken
-                    invite_token = InviteToken.objects.create(
-                        user=user,
-                        expires_at=timezone.now() + timedelta(days=7)  # 7日間有効
+                    # 既存の招待トークンを無効化
+                    InviteToken.objects.filter(user=user).update(is_used=True)
+                else:
+                    # 新規作成
+                    serializer = BulkUploadUserSerializer(
+                        data=validated_row,
+                        context={'organization': request.user.organization}  # 重複チェック用
                     )
+                    if not serializer.is_valid():
+                        error_list.append({
+                            'row': row_num,
+                            'email': email,
+                            'error': format_serializer_errors(serializer.errors)
+                        })
+                        continue
                     
-                    # 招待メール送信
+                    user = serializer.save(
+                        organization=request.user.organization,
+                        role='USER',
+                        is_activated=False,
+                        is_staff=False,
+                        is_superuser=False,
+                        password=User.objects.make_random_password(length=12)
+                    )
+                
+                # 4. 招待トークン生成
+                invite_token = InviteToken.objects.create(
+                    user=user,
+                    expires_at=timezone.now() + timedelta(days=7)
+                )
+                
+                # 5. 招待メール送信
+                try:
                     from django.core.mail import send_mail
                     from django.conf import settings
                     
                     invite_url = f"{settings.FRONTEND_URL}/invite/{invite_token.token}"
                     
-                    send_mail(
+                    print(f"📧 メール送信開始: {user.email}")
+                    print(f"   招待URL: {invite_url}")
+                    
+                    result = send_mail(
                         subject='Mind Status への招待',
                         message=f'''
 {user.full_name} 様
@@ -212,29 +244,41 @@ Mind Status 運営チーム
 ''',
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[user.email],
-                        fail_silently=False,
+                        fail_silently=False,  # エラーを表示
                     )
+                    print(f"✅ メール送信成功: {user.email} (結果: {result})")
                     
-                    success_count += 1
-                    
-                except Exception as e:
-                    errors.append({
-                        'row': row_num,
-                        'error': str(e)
-                    })
-                    error_count += 1
+                except Exception as mail_error:
+                    # メール送信失敗はログに記録するが処理は続行
+                    print(f"❌ メール送信失敗 ({email}): {mail_error}")
+                    import traceback
+                    traceback.print_exc()
+                
+                success_list.append(user.email)
+                
+            except serializers.ValidationError as e:
+                # バリデーションエラー
+                error_detail = str(e.detail) if hasattr(e, 'detail') else str(e)
+                error_list.append({
+                    'row': row_num,
+                    'email': row.get('email', ''),
+                    'error': error_detail
+                })
             
-            return Response({
-                'success_count': success_count,
-                'error_count': error_count,
-                'errors': errors
-            })
-            
-        except Exception as e:
-            return Response(
-                {'error': f'CSVファイルの読み込みに失敗しました: {str(e)}'},
-                status=http_status.HTTP_400_BAD_REQUEST
-            )
+            except Exception as e:
+                # 予期しないエラー
+                error_list.append({
+                    'row': row_num,
+                    'email': row.get('email', ''),
+                    'error': f'エラー: {str(e)}'
+                })
+        
+        # 結果を返す
+        return Response({
+            'success_count': len(success_list),
+            'error_count': len(error_list),
+            'errors': error_list
+        })
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def verify_invite(self, request):
@@ -507,8 +551,8 @@ Mind Status 運営チーム
         
         # サンプルデータ（学校）
         school_samples = [
-            ['S2024001', '田中太郎', 'タナカタロウ', '1', 'A組', 'MALE', '2010-04-15', 'tanaka@example.com'],
-            ['S2024002', '鈴木花子', 'スズキハナコ', '1', 'A組', 'FEMALE', '2010-08-22', 'suzuki@example.com'],
+            ['S2024001', '田中太郎', 'タナカタロウ', '1', 'A組', '男', '2010-04-15', 'tanaka@example.com'],
+            ['S2024002', '鈴木花子', 'スズキハナコ', '1', 'A組', '女', '2010-08-22', 'suzuki@example.com'],
         ]
         for row_num, sample in enumerate(school_samples, 3):
             for col_num, value in enumerate(sample, 1):
@@ -546,8 +590,8 @@ Mind Status 運営チーム
         
         # サンプルデータ（企業）
         company_samples = [
-            ['E001', '田中太郎', 'タナカタロウ', '営業部', '課長', 'MALE', '1985-04-15', 'tanaka@example.com'],
-            ['E002', '鈴木花子', 'スズキハナコ', '人事部', '主任', 'FEMALE', '1990-08-22', 'suzuki@example.com'],
+            ['E001', '田中太郎', 'タナカタロウ', '営業部', '課長', '男', '1985-04-15', 'tanaka@example.com'],
+            ['E002', '鈴木花子', 'スズキハナコ', '人事部', '主任', '女', '1990-08-22', 'suzuki@example.com'],
         ]
         for row_num, sample in enumerate(company_samples, 3):
             for col_num, value in enumerate(sample, 1):
@@ -690,16 +734,18 @@ class StatusLogViewSet(viewsets.ModelViewSet):
         print(f"[DEBUG] Current time (JST): {now_jst}")
         print(f"[DEBUG] Today's date: {today}")
         
-        # 全ユーザー数（管理者を除外）
+        # 全ユーザー数（管理者を除外・有効化済みのみ）
         total_users = User.objects.filter(
             organization=organization,
-            role='USER'
+            role='USER',
+            is_activated=True  # 有効化済みユーザーのみ
         ).count()
         
-        # 各ユーザーの本日の最新ステータスを取得
+        # 各ユーザーの本日の最新ステータスを取得（有効化済みのみ）
         users = User.objects.filter(
             organization=organization,
-            role='USER'
+            role='USER',
+            is_activated=True  # 有効化済みユーザーのみ
         )
         
         status_distribution = {
@@ -751,10 +797,11 @@ class StatusLogViewSet(viewsets.ModelViewSet):
         now_jst = timezone.now().astimezone(jst)
         today = now_jst.date()
         
-        # 一般ユーザーのみ取得
+        # 一般ユーザーのみ取得（有効化済みのみ）
         users = User.objects.filter(
             organization=organization,
-            role='USER'
+            role='USER',
+            is_activated=True  # 有効化済みユーザーのみ
         )
         
         alerts = []
@@ -798,10 +845,11 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             )
         
         organization = request.user.organization
-        # 一般ユーザーのみ取得
+        # 一般ユーザーのみ取得（有効化済みのみ）
         users = User.objects.filter(
             organization=organization,
-            role='USER'
+            role='USER',
+            is_activated=True  # 有効化済みユーザーのみ
         ).order_by('full_name')
         
         user_status_list = []
@@ -812,6 +860,7 @@ class StatusLogViewSet(viewsets.ModelViewSet):
                 'id': str(user.id),
                 'full_name': user.full_name,
                 'email': user.email,
+                'is_activated': user.is_activated,  # フロントエンド用に追加
                 # 企業用
                 'department': user.department or '',
                 'position': user.position or '',
@@ -852,10 +901,11 @@ class StatusLogViewSet(viewsets.ModelViewSet):
         for i in range(days - 1, -1, -1):  # N日前から今日まで
             target_date = today_jst - timedelta(days=i)
             
-            # 一般ユーザーのみ取得
+            # 一般ユーザーのみ取得（有効化済みのみ）
             users = User.objects.filter(
                 organization=organization,
-                role='USER'
+                role='USER',
+                is_activated=True  # 有効化済みユーザーのみ
             )
             
             status_count = {
@@ -926,21 +976,31 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             
             # フィルタパラメータ取得
             department_filter = request.query_params.get('department')
+            grade_filter = request.query_params.get('grade')
+            class_filter = request.query_params.get('class')
             status_filter = request.query_params.get('status')
             search_query = request.query_params.get('search')
             
-            # 指定期間内のステータス記録を取得
+            # 指定期間内のステータス記録を取得（有効化済みユーザーのみ）
             logs = StatusLog.objects.filter(
                 user__organization=organization,
                 user__role='USER',
+                user__is_activated=True,  # 有効化済みユーザーのみ
                 created_at__date__gte=start_date,
                 created_at__date__lte=end_date
             )
             
-            # フィルタ適用
+            # フィルタ適用（企業用）
             if department_filter and department_filter != 'all':
                 logs = logs.filter(user__department=department_filter)
             
+            # フィルタ適用（学校用）
+            if grade_filter and grade_filter != 'all':
+                logs = logs.filter(user__grade=int(grade_filter))
+            if class_filter and class_filter != 'all':
+                logs = logs.filter(user__class_name=class_filter)
+            
+            # 共通フィルタ
             if status_filter and status_filter != 'all':
                 logs = logs.filter(status=status_filter)
             
@@ -1012,18 +1072,28 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             # 最新ステータスモード
             # フィルタパラメータ取得
             department_filter = request.query_params.get('department')
+            grade_filter = request.query_params.get('grade')
+            class_filter = request.query_params.get('class')
             status_filter = request.query_params.get('status')
             search_query = request.query_params.get('search')
             
             users = User.objects.filter(
                 organization=organization,
-                role='USER'
+                role='USER',
+                is_activated=True  # 有効化済みユーザーのみ
             )
             
-            # フィルタ適用
+            # フィルタ適用（企業用）
             if department_filter and department_filter != 'all':
                 users = users.filter(department=department_filter)
             
+            # フィルタ適用（学校用）
+            if grade_filter and grade_filter != 'all':
+                users = users.filter(grade=int(grade_filter))
+            if class_filter and class_filter != 'all':
+                users = users.filter(class_name=class_filter)
+            
+            # 共通フィルタ
             if search_query:
                 users = users.filter(full_name__icontains=search_query)
             

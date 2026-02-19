@@ -34,6 +34,7 @@ interface UserStatus {
   id: string;
   full_name: string;
   email: string;
+  is_activated: boolean;  // アカウント有効化済みフラグ
   // 企業用
   department: string;
   position: string;
@@ -178,9 +179,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
         params.append('end_date', endDate);
       }
       
+      // 企業用フィルタ
       if (departmentFilter !== 'all') {
         params.append('department', departmentFilter);
       }
+      
+      // 学校用フィルタ
+      if (gradeFilter !== 'all') {
+        params.append('grade', gradeFilter);
+      }
+      if (classFilter !== 'all') {
+        params.append('class', classFilter);
+      }
+      
+      // 共通フィルタ
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
       }
@@ -239,6 +251,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
   // フィルタ適用
   const filteredUsers = userStatuses.filter(user => {
+    // 未アクティブユーザーを除外（招待承認前は非表示）
+    if (!user.is_activated) return false;
+    
     // 企業向けフィルター
     if (orgType === 'COMPANY' && departmentFilter !== 'all' && user.department !== departmentFilter) return false;
     
@@ -253,14 +268,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
     return true;
   });
 
-  // 部署一覧を取得（ユニーク）
-  const departments = Array.from(new Set(userStatuses.map(u => u.department).filter(d => d && d !== '-')));
+  // アクティブユーザー数を計算
+  const activeUsersCount = userStatuses.filter(u => u.is_activated).length;
+
+  // 部署一覧を取得（ユニーク・アクティブユーザーのみ）
+  const departments = Array.from(new Set(
+    userStatuses.filter(u => u.is_activated).map(u => u.department).filter(d => d && d !== '-')
+  ));
   
-  // 学年一覧を取得（ユニーク）
-  const grades = Array.from(new Set(userStatuses.map(u => u.grade).filter((g): g is number => g !== null && g !== undefined))).sort((a, b) => a - b);
+  // 学年一覧を取得（ユニーク・アクティブユーザーのみ）
+  const grades = Array.from(new Set(
+    userStatuses.filter(u => u.is_activated).map(u => u.grade).filter((g): g is number => g !== null && g !== undefined)
+  )).sort((a, b) => a - b);
   
-  // クラス一覧を取得（ユニーク）
-  const classes = Array.from(new Set(userStatuses.map(u => u.class_name).filter(c => c && c !== '-')));
+  // クラス一覧を取得（ユニーク・アクティブユーザーのみ）
+  const classes = Array.from(new Set(
+    userStatuses.filter(u => u.is_activated).map(u => u.class_name).filter(c => c && c !== '-')
+  ));
 
   // 円グラフ用データ
   const chartData = summary ? [
@@ -284,10 +308,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
           <h1>Mind Status - 管理者ダッシュボード</h1>
           <div className="header-actions">
             <button onClick={() => navigate('/change-password')} className="change-pw-button">
-              🔐 PW変更
+              パスワード変更
             </button>
             <button onClick={handleDeleteAccount} className="delete-account-button">
-              🗑️ アカウント削除
+              アカウント削除
             </button>
             <button onClick={handleLogout} className="logout-button">
               ログアウト
@@ -308,11 +332,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
               className={`tab-button ${showBulkUpload ? 'active' : ''}`}
               onClick={() => setShowBulkUpload(true)}
             >
-              📤 ユーザー一括登録
+              📤 ユーザー登録
             </button>
           </div>
 
-          {/* 一括登録画面 */}
+          {/* 登録画面 */}
           {showBulkUpload ? (
             <UserBulkUpload onSuccess={fetchDashboardData} />
           ) : (
@@ -376,7 +400,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
                 {/* アラート一覧 */}
                 <section className="alerts-section">
-                  <h2>🚨 警告アラート ({alerts.length}件)</h2>
+                  <h2>警告アラート ({alerts.length}件)</h2>
                   {alerts.length > 0 ? (
                     <div className="alerts-list">
                       {alerts.map((alert) => (
@@ -527,7 +551,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
                   </div>
 
                   <div className="filter-results">
-                    {filteredUsers.length}件 / {userStatuses.length}件
+                    {filteredUsers.length}件 / {activeUsersCount}件（有効化済み）
                   </div>
                 </div>
 
@@ -595,7 +619,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
                               className="delete-user-button"
                               title="ユーザーを削除"
                             >
-                              🗑️ 削除
+                              削除
                             </button>
                           </td>
                         </tr>

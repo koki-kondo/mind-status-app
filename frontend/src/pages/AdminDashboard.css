@@ -80,10 +80,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.summary-card.alert-card {
-  border-left: 4px solid #EF4444;
-}
-
 .card-icon {
   font-size: 48px;
   flex-shrink: 0;

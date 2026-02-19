@@ -30,6 +30,18 @@ DATABASES = {
     }
 }
 
+# メール設定（本番環境：SMTP）
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@example.com')
+
+# フロントエンドURL（招待メール用）
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://yourdomain.com')
+
 # 静的ファイル設定
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR.parent, 'staticfiles')
