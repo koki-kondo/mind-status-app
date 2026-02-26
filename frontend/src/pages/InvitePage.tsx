@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import publicApi from '../api/public';
 import './InvitePage.css';
@@ -16,11 +16,8 @@ const InvitePage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  useEffect(() => {
-    verifyToken();
-  }, [token]);
-
-  const verifyToken = async () => {
+  // ✅ verifyToken を useCallback で定義
+  const verifyToken = useCallback(async () => {
     try {
       const response = await publicApi.get(`/api/users/verify_invite/?token=${token}`);
       setUserInfo(response.data.user);
@@ -29,21 +26,18 @@ const InvitePage: React.FC = () => {
       setError(error.response?.data?.error || 'トークンの検証に失敗しました');
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  // ✅ useEffect の依存に verifyToken を追加
+  useEffect(() => {
+    verifyToken();
+  }, [verifyToken]);
 
   const validatePassword = (pwd: string): string => {
-    if (pwd.length < 8) {
-      return 'パスワードは8文字以上で設定してください';
-    }
-    if (!/[A-Z]/.test(pwd)) {
-      return 'パスワードには大文字を含めてください';
-    }
-    if (!/[a-z]/.test(pwd)) {
-      return 'パスワードには小文字を含めてください';
-    }
-    if (!/[0-9]/.test(pwd)) {
-      return 'パスワードには数字を含めてください';
-    }
+    if (pwd.length < 8) return 'パスワードは8文字以上で設定してください';
+    if (!/[A-Z]/.test(pwd)) return 'パスワードには大文字を含めてください';
+    if (!/[a-z]/.test(pwd)) return 'パスワードには小文字を含めてください';
+    if (!/[0-9]/.test(pwd)) return 'パスワードには数字を含めてください';
     return '';
   };
 
@@ -153,18 +147,10 @@ const InvitePage: React.FC = () => {
           <div className="password-requirements">
             <p className="requirements-title">パスワードの要件:</p>
             <ul>
-              <li className={password.length >= 8 ? 'valid' : ''}>
-                8文字以上
-              </li>
-              <li className={/[A-Z]/.test(password) ? 'valid' : ''}>
-                大文字を含む
-              </li>
-              <li className={/[a-z]/.test(password) ? 'valid' : ''}>
-                小文字を含む
-              </li>
-              <li className={/[0-9]/.test(password) ? 'valid' : ''}>
-                数字を含む
-              </li>
+              <li className={password.length >= 8 ? 'valid' : ''}>8文字以上</li>
+              <li className={/[A-Z]/.test(password) ? 'valid' : ''}>大文字を含む</li>
+              <li className={/[a-z]/.test(password) ? 'valid' : ''}>小文字を含む</li>
+              <li className={/[0-9]/.test(password) ? 'valid' : ''}>数字を含む</li>
             </ul>
           </div>
 
