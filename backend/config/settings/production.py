@@ -3,6 +3,10 @@ Production settings for Mind Status application.
 """
 import os
 from .base import *
+import dj_database_url
+
+# 本番ではSECRET_KEYを必須にする
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 # セキュリティ設定
 DEBUG = False
@@ -20,14 +24,9 @@ X_FRAME_OPTIONS = 'DENY'
 
 # データベース設定（Render.com PostgreSQL）
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL')
+    )
 }
 
 # メール設定（本番環境：SMTP）
