@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import publicApi from '../api/public';
 import './InvitePage.css';
 
 const InvitePage: React.FC = () => {
@@ -22,7 +22,7 @@ const InvitePage: React.FC = () => {
 
   const verifyToken = async () => {
     try {
-      const response = await axios.get(`/api/users/verify_invite/?token=${token}`);
+      const response = await publicApi.get(`/api/users/verify_invite/?token=${token}`);
       setUserInfo(response.data.user);
       setLoading(false);
     } catch (error: any) {
@@ -51,7 +51,6 @@ const InvitePage: React.FC = () => {
     e.preventDefault();
     setPasswordError('');
 
-    // バリデーション
     const validationError = validatePassword(password);
     if (validationError) {
       setPasswordError(validationError);
@@ -66,11 +65,12 @@ const InvitePage: React.FC = () => {
     setVerifying(true);
 
     try {
-      await axios.post('/api/users/set_password_with_invite/', {
+      await publicApi.post('/api/users/set_password_with_invite/', {
         token,
         password,
       });
 
+      console.log('パスワード設定成功');
       alert('パスワードが設定されました！ログイン画面に移動します。');
       navigate('/login');
     } catch (error: any) {
@@ -93,7 +93,7 @@ const InvitePage: React.FC = () => {
     return (
       <div className="invite-page">
         <div className="invite-card error-card">
-          <h2>❌ エラー</h2>
+          <h2>エラー</h2>
           <p className="error-message">{error}</p>
           <button onClick={() => navigate('/login')} className="back-button">
             ログイン画面へ戻る
@@ -106,7 +106,7 @@ const InvitePage: React.FC = () => {
   return (
     <div className="invite-page">
       <div className="invite-card">
-        <h1>🎉 Mind Status へようこそ!</h1>
+        <h1>Mind Status へようこそ！</h1>
         
         <div className="user-info">
           <p className="welcome-text">

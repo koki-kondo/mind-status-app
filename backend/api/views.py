@@ -282,7 +282,23 @@ Mind Status 運営チーム
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def verify_invite(self, request):
-        """招待トークンの検証"""
+        """
+        招待トークンの検証
+        
+        設計意図:
+        - ログイン中のユーザーがアクセスした場合、セッションを明示的にクリア
+        - セッション混在を防止し、招待フローを独立させる
+        """
+        from django.contrib.auth import logout
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # ログイン中の場合は強制ログアウト
+        if request.user.is_authenticated:
+            user_email = request.user.email  # logout前に取得
+            logout(request)
+            logger.info(f'招待URL アクセス: {user_email} を強制ログアウトしました')
+        
         token_str = request.query_params.get('token')
         
         if not token_str:

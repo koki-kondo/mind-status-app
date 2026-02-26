@@ -1,0 +1,28 @@
+# ==============================
+# Linux環境で確実に動かす（LF固定）
+# ==============================
+
+# Shell
+*.sh text eol=lf
+
+# Python
+*.py text eol=lf
+
+# YAML / Docker / Render
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+
+# Web（基本LFで統一）
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# ==============================
+# Windows専用（CRLF）
+# ==============================
+*.bat text eol=crlf
+*.cmd text eol=crlf

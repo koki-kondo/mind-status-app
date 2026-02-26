@@ -12,26 +12,22 @@ django-cors-headers==4.3.1
 # Environment variables
 python-dotenv==1.0.0
 
-# Password validation
+# Password hashing
 argon2-cffi==23.1.0
-
-# Email
-django-ses==3.5.2
 
 # Utilities
 pytz==2024.1
 python-dateutil==2.8.2
 
-# CSV handling
+# CSV/Excel handling
 chardet==5.2.0
-
-# Excel handling
 openpyxl==3.1.2
+et-xmlfile==2.0.0
 
 # Production server
 gunicorn==21.2.0
 whitenoise==6.6.0
 
-# Development tools
+# Development tools (optional)
 ipython==8.20.0
 django-extensions==3.2.3

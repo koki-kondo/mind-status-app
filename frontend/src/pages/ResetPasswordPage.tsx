@@ -73,7 +73,7 @@ const ResetPasswordPage: React.FC = () => {
     return (
       <div className="invite-page">
         <div className="invite-card error-card">
-          <h2>❌ エラー</h2>
+          <h2>エラー</h2>
           <p className="error-message">{error}</p>
           <button onClick={() => navigate('/forgot-password')} className="back-button">
             もう一度リセット申請する
@@ -88,7 +88,7 @@ const ResetPasswordPage: React.FC = () => {
     return (
       <div className="invite-page">
         <div className="invite-card">
-          <h1>✅ パスワード再設定完了</h1>
+          <h1>パスワード再設定完了</h1>
           <div className="user-info">
             <p className="welcome-text" style={{ color: '#10B981' }}>
               新しいパスワードで設定しました
@@ -106,7 +106,7 @@ const ResetPasswordPage: React.FC = () => {
   return (
     <div className="invite-page">
       <div className="invite-card">
-        <h1>🔑 パスワード再設定</h1>
+        <h1>パスワード再設定</h1>
         <p className="instruction-text">新しいパスワードを設定してください</p>
 
         <form onSubmit={handleSubmit} className="password-form">

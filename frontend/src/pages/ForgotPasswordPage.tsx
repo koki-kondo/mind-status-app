@@ -30,7 +30,7 @@ const ForgotPasswordPage: React.FC = () => {
     return (
       <div className="invite-page">
         <div className="invite-card">
-          <h1>📧 メール送信完了</h1>
+          <h1>メール送信完了</h1>
           <div className="user-info">
             <p className="welcome-text" style={{ color: '#10B981' }}>
               リセットリンクが送られました
@@ -52,7 +52,7 @@ const ForgotPasswordPage: React.FC = () => {
   return (
     <div className="invite-page">
       <div className="invite-card">
-        <h1>🔑 パスワード忘れ</h1>
+        <h1>パスワード忘れ</h1>
         <p className="instruction-text">
           登録メールアドレスを入力してください。<br />
           パスワード再設定のリンクを送信します。

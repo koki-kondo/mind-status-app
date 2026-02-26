@@ -54,7 +54,7 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ setIsAuthentica
     return (
       <div className="invite-page">
         <div className="invite-card">
-          <h1>✅ パスワード変更完了</h1>
+          <h1>パスワード変更完了</h1>
           <div className="user-info">
             <p className="welcome-text" style={{ color: '#10B981' }}>
               新しいパスワードに変更しました
@@ -71,7 +71,7 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ setIsAuthentica
   return (
     <div className="invite-page">
       <div className="invite-card">
-        <h1>🔐 パスワード変更</h1>
+        <h1>パスワード変更</h1>
 
         <form onSubmit={handleSubmit} className="password-form">
           <div className="form-group">
