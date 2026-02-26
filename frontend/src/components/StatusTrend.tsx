@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   LineChart,
@@ -28,31 +28,33 @@ const StatusTrend: React.FC = () => {
 
   useEffect(() => {
     fetchTrendData();
-  }, [selectedDays]); // selectedDaysが変わったら再取得
+  }, [fetchTrendData]); // fetchTrendDataが変わったら再取得
 
-  const fetchTrendData = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get(`/api/status/trend_data/?days=${selectedDays}`, {
+  const fetchTrendData = useCallback(async () => {
+  setLoading(true);
+  try {
+    const token = localStorage.getItem('access_token');
+    const response = await axios.get(
+      `/api/status/trend_data/?days=${selectedDays}`,
+      {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      }
+    );
 
-      // 日付を日本語形式に変換
-      const formattedData = response.data.map((item: TrendData) => ({
-        ...item,
-        dateLabel: formatDate(item.date)
-      }));
+    const formattedData = response.data.map((item: TrendData) => ({
+      ...item,
+      dateLabel: formatDate(item.date),
+    }));
 
-      setTrendData(formattedData);
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch trend data:', error);
-      setLoading(false);
-    }
-  };
+    setTrendData(formattedData);
+  } catch (error) {
+    console.error('Failed to fetch trend data:', error);
+  } finally {
+    setLoading(false);
+  }
+}, [selectedDays]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

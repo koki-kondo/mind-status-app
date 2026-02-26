@@ -1,7 +1,7 @@
 // src/api/public.ts
 // 招待URL用の完全未認証APIクライアント
 
-import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 
 /**
  * 完全未認証のAPIクライアント

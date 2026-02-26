@@ -133,13 +133,20 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ setIsAuthentica
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px' }}>
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); navigate('/dashboard'); }}
-            style={{ color: '#667eea', textDecoration: 'none' }}
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              color: '#667eea',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              font: 'inherit',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
           >
             ← ダッシュボードへ戻る
-          </a>
+          </button>
         </p>
       </div>
     </div>
