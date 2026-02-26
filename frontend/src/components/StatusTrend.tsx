@@ -26,35 +26,36 @@ const StatusTrend: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedDays, setSelectedDays] = useState<number>(7);
 
+  // fetchTrendData を useEffect より先に宣言
+  const fetchTrendData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(
+        `/api/status/trend_data/?days=${selectedDays}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const formattedData = response.data.map((item: TrendData) => ({
+        ...item,
+        dateLabel: formatDate(item.date),
+      }));
+
+      setTrendData(formattedData);
+    } catch (error) {
+      console.error('Failed to fetch trend data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDays]);
+
   useEffect(() => {
     fetchTrendData();
-  }, [fetchTrendData]); // fetchTrendDataが変わったら再取得
-
-  const fetchTrendData = useCallback(async () => {
-  setLoading(true);
-  try {
-    const token = localStorage.getItem('access_token');
-    const response = await axios.get(
-      `/api/status/trend_data/?days=${selectedDays}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    const formattedData = response.data.map((item: TrendData) => ({
-      ...item,
-      dateLabel: formatDate(item.date),
-    }));
-
-    setTrendData(formattedData);
-  } catch (error) {
-    console.error('Failed to fetch trend data:', error);
-  } finally {
-    setLoading(false);
-  }
-}, [selectedDays]);
+  }, [fetchTrendData]); // fetchTrendData が変わったら再取得
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -176,7 +177,7 @@ const StatusTrend: React.FC = () => {
           </ResponsiveContainer>
         </div>
       ) : (
-        <p className="no-data">過去7日間のデータがありません</p>
+        <p className="no-data">過去{selectedDays}日間のデータがありません</p>
       )}
     </div>
   );
