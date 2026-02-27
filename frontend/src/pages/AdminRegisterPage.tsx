@@ -55,7 +55,8 @@ const AdminRegisterPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/users/register_admin/', {
+      // ✅ 修正: 環境変数を使用 & エンドポイント名を修正
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/users/admin_register/`, {
         email: formData.email,
         password: formData.password,
         full_name: formData.full_name,
@@ -64,10 +65,12 @@ const AdminRegisterPage: React.FC = () => {
       });
 
       if (response.data.success) {
-        alert(`管理者アカウントが作成されました！\n\n組織: ${response.data.user.organization}\nタイプ: ${response.data.user.org_type === 'SCHOOL' ? '学校' : '企業'}\n\nログインしてください。`);
+        alert(`管理者アカウントが作成されました！\n\n組織: ${response.data.user.organization}\nタイプ: ${response.data.user.organization_type === 'SCHOOL' ? '学校' : '企業'}\n\nログインしてください。`);
         navigate('/login');
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
+      
       if (error.response?.data?.errors) {
         const apiErrors = error.response.data.errors;
         const errorMessages: string[] = [];
