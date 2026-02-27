@@ -45,6 +45,8 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://yourdomain.com')
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR.parent, 'staticfiles')
 
+MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
+
 # ホワイトノイズ（静的ファイル配信）
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -70,3 +72,11 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+INSTALLED_APPS += [
+    'corsheaders',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    os.getenv("FRONTEND_URL"),
+]
