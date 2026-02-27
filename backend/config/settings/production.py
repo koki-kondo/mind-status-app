@@ -5,77 +5,33 @@ import os
 from .base import *
 import dj_database_url
 
-# 本番ではSECRET_KEYを必須にする
-SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "temporary-secret")
 
-# セキュリティ設定
 DEBUG = False
 
-# 本番環境のホスト設定（Render.comから取得）
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "localhost"
+).split(",")
 
-# セキュリティ設定
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-
-# データベース設定（Render.com PostgreSQL）
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL')
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL")
     )
 }
 
-# メール設定（本番環境：SMTP）
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@example.com')
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
-# フロントエンドURL（招待メール用）
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://yourdomain.com')
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# 静的ファイル設定
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR.parent, 'staticfiles')
+# WhiteNoise
+MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
-MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
+# CORS
+raw_cors = os.getenv("CORS_ALLOWED_ORIGINS", "")
+CORS_ALLOWED_ORIGINS = [origin for origin in raw_cors.split(",") if origin]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
-# ホワイトノイズ（静的ファイル配信）
-MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-
-# ロギング設定
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-}
-
-# CORS設定
-CORS_ALLOWED_ORIGINS = [
-    os.getenv("FRONTEND_URL"),
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-INSTALLED_APPS += [
-    'corsheaders',
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    os.getenv("FRONTEND_URL"),
-]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
