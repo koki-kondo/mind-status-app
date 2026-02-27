@@ -25,6 +25,21 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_permissions(self):
+        """アクションごとに権限を設定"""
+        public_actions = [
+            'admin_register',           # 管理者登録
+            'verify_invite',            # 招待トークン検証
+            'set_password_with_invite', # 招待パスワード設定
+            'request_password_reset',   # パスワードリセット要求
+            'reset_password',           # パスワードリセット実行
+        ]
+        
+        if self.action in public_actions:
+            return [permissions.AllowAny()]
+        
+        return [permissions.IsAuthenticated()]
+    
     def get_queryset(self):
         """組織でフィルタリング"""
         user = self.request.user
@@ -37,6 +52,54 @@ class UserViewSet(viewsets.ModelViewSet):
         """現在ログイン中のユーザー情報を取得"""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def admin_register(self, request):
+        """
+        管理者登録エンドポイント
+        
+        POST /api/users/admin_register/
+        
+        Request Body:
+        {
+            "email": "admin@example.com",
+            "password": "Admin123",
+            "full_name": "管理者名",
+            "organization_name": "組織名",
+            "org_type": "COMPANY" or "SCHOOL"
+        }
+        """
+        from .serializers import AdminRegistrationSerializer
+        
+        serializer = AdminRegistrationSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # create() メソッドで組織とユーザーを作成
+            user = serializer.save()
+            
+            return Response({
+                'success': True,
+                'message': '管理者登録が完了しました',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'full_name': user.full_name,
+                    'organization': user.organization.name,
+                    'organization_type': user.organization.org_type
+                }
+            }, status=http_status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'登録中にエラーが発生しました: {str(e)}'},
+                status=http_status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def bulk_upload(self, request):
