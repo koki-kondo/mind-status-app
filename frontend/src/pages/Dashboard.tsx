@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -30,9 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
   const fetchUserInfo = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get('/api/users/me/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await apiClient.get('/api/users/me/');
       const user = response.data;
       if (user && user.id) {
         setUserId(user.id);
@@ -45,11 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
   const fetchStatusLogs = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get('/api/status/', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiClient.get('/api/status/');
       setStatusLogs(response.data.results || response.data);
       setLoading(false);
     } catch (error) {
@@ -62,18 +56,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('access_token');
-      await axios.post(
-        '/api/status/',
-        {
-          status: newStatus,
-          comment: newComment,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await apiClient.post('/api/status/', {
+        status: newStatus,
+        comment: newComment,
+      });
       
       setNewComment('');
       fetchStatusLogs();
@@ -101,9 +87,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
 
     try {
       const token = localStorage.getItem('access_token');
-      await axios.delete(`/api/users/${userId}/delete_user/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.delete(`/api/users/${userId}/delete_user/`);
 
       alert('アカウントを削除しました');
       handleLogout();

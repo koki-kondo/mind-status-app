@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './UserBulkUpload.css';
 
 interface UserBulkUploadProps {
@@ -40,11 +40,7 @@ const UserBulkUpload: React.FC<UserBulkUploadProps> = ({ onSuccess }) => {
 
   const handleDownloadTemplate = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get('/api/users/csv_template/', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await apiClient.get('/api/users/csv_template/', {
         responseType: 'blob',
       });
 
@@ -72,13 +68,11 @@ const UserBulkUpload: React.FC<UserBulkUploadProps> = ({ onSuccess }) => {
     setResult(null);
 
     try {
-      const token = localStorage.getItem('access_token');
       const formData = new FormData();
-      formData.append('file', file);
+        formData.append('file', file);
 
-      const response = await axios.post('/api/users/bulk_upload/', formData, {
+      const response = await apiClient.post('/api/users/bulk_upload/', formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
       });

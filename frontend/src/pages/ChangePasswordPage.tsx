@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './InvitePage.css'; // 同じベーススタイルを再利用
 
 interface ChangePasswordPageProps {
@@ -34,12 +34,9 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ setIsAuthentica
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.post('/api/users/change_password/', {
+      await apiClient.post('/api/users/change_password/', {
         current_password: currentPassword,
         new_password: newPassword,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
       });
       setSuccess(true);
     } catch (err: any) {

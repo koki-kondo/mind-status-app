@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './InvitePage.css'; // 同じベーススタイルを再利用
 
 const ForgotPasswordPage: React.FC = () => {
@@ -16,7 +16,7 @@ const ForgotPasswordPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await axios.post('/api/users/request_password_reset/', { email });
+      await apiClient.post('/api/users/request_password_reset/', { email });
       setSubmitted(true);
     } catch (err: any) {
       setError(err.response?.data?.error || 'エラーが発生しました');

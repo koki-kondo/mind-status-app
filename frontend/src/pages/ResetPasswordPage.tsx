@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './InvitePage.css'; // 同じベーススタイルを再利用
 
 const ResetPasswordPage: React.FC = () => {
@@ -20,7 +20,7 @@ const ResetPasswordPage: React.FC = () => {
   useEffect(() => {
     const verify = async () => {
       try {
-        await axios.get(`/api/users/verify_invite/?token=${token}`);
+        await apiClient.get(`/api/users/verify_invite/?token=${token}`);
         setLoading(false);
       } catch (err: any) {
         setError(err.response?.data?.error || 'トークンが無効です');
@@ -48,7 +48,7 @@ const ResetPasswordPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await axios.post('/api/users/reset_password/', { token, password });
+      await apiClient.post('/api/users/reset_password/', { token, password });
       setSuccess(true);
     } catch (err: any) {
       setPasswordError(err.response?.data?.error || 'パスワード再設定に失敗しました');

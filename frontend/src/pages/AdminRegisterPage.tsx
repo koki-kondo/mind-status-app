@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './AdminRegisterPage.css';
 
 const AdminRegisterPage: React.FC = () => {

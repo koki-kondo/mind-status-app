@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import apiClient from '../api/client';
 import {
   LineChart,
   Line,
@@ -30,14 +30,8 @@ const StatusTrend: React.FC = () => {
   const fetchTrendData = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get(
-        `/api/status/trend_data/?days=${selectedDays}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await apiClient.get(
+        `/api/status/trend_data/?days=${selectedDays}`
       );
 
       const formattedData = response.data.map((item: TrendData) => ({

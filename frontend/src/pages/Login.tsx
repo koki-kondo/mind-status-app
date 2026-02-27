@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './Login.css';
 
 interface LoginProps {
@@ -20,7 +20,7 @@ const Login: React.FC<LoginProps> = ({ setIsAuthenticated }) => {
 
     try {
       // ログイン
-      const response = await axios.post('/api/auth/login/', {
+      const response = await apiClient.post('/api/auth/login/', {
         email,
         password,
       });
@@ -30,11 +30,8 @@ const Login: React.FC<LoginProps> = ({ setIsAuthenticated }) => {
       localStorage.setItem('refresh_token', response.data.refresh);
       
       // 自分の情報を取得（/api/users/me/ を使用）
-      const userResponse = await axios.get('/api/users/me/', {
-        headers: {
-          Authorization: `Bearer ${response.data.access}`
-        }
-      });
+      const userResponse = await apiClient.get('/api/users/me/');
+      // ← ヘッダーは自動追加されるので不要
       
       // 自分の情報を取得
       const user = userResponse.data;
