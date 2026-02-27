@@ -49,7 +49,6 @@ MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
 
 # ホワイトノイズ（静的ファイル配信）
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ロギング設定
 LOGGING = {
