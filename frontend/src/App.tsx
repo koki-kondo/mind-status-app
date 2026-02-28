@@ -10,6 +10,8 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import './App.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 function App() {
   const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(false);
@@ -46,7 +48,7 @@ function App() {
     }
 
     console.log('[App] 認証チェック実行');
-    fetch('/api/users/me/', {
+    fetch(`${API_URL}/api/users/me/`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => {
