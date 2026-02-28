@@ -78,26 +78,26 @@ class AdminRegistrationSerializer(serializers.Serializer):
         return value
     
     def create(self, validated_data):
-    """組織と管理者アカウントを作成"""
-    # 組織を作成
-    organization = Organization.objects.create(
-        name=validated_data['organization_name'],
-        org_type=validated_data['org_type']
-    )
+        """組織と管理者アカウントを作成"""
+        # 組織を作成
+        organization = Organization.objects.create(
+            name=validated_data['organization_name'],
+            org_type=validated_data['org_type']
+        )
     
-    # create_user を使用（superuser権限を付与しない）
-    user = User.objects.create_user(
-        email=validated_data['email'],
-        full_name=validated_data['full_name'],
-        password=validated_data['password'],
-        organization=organization,
-        role='ADMIN',
-        is_activated=True,
-        is_staff=False,        # Django管理画面へのアクセス不可
-        is_superuser=False     # superuser権限なし
-    )
+        # create_user を使用（superuser権限を付与しない）
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            full_name=validated_data['full_name'],
+            password=validated_data['password'],
+            organization=organization,
+            role='ADMIN',
+            is_activated=True,
+            is_staff=False,        # Django管理画面へのアクセス不可
+            is_superuser=False     # superuser権限なし
+        )
     
-    return user
+        return user
 
 
 class BulkUploadUserSerializer(serializers.ModelSerializer):
