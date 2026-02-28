@@ -80,14 +80,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const headers = { Authorization: `Bearer ${token}` };
-
       const [summaryRes, alertsRes, usersRes, userInfoRes] = await Promise.all([
-        axios.get('/api/status/dashboard_summary/', { headers }),
-        axios.get('/api/status/alerts/', { headers }),
-        axios.get('/api/status/user_latest_status/', { headers }),
-        axios.get('/api/users/me/', { headers }) // 自分の情報を取得
+        apiClient.get('/api/status/dashboard_summary/'),
+        apiClient.get('/api/status/alerts/'),
+        apiClient.get('/api/status/user_latest_status/'),
+        apiClient.get('/api/users/me/')
       ]);
 
       setSummary(summaryRes.data);
@@ -128,10 +125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
     }
 
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.delete(`/api/users/${userId}/delete_user/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.delete(`/api/users/${userId}/delete_user/`);
 
       alert('アカウントを削除しました');
       handleLogout();
@@ -151,10 +145,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
     }
 
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.delete(`/api/users/${userId}/delete_user/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.delete(`/api/users/${userId}/delete_user/`);
 
       alert(`${userName} さんを削除しました`);
       fetchDashboardData(); // データを再取得
@@ -169,9 +160,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
   };
 
   const handleExportCSV = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      
+    try {      
       const params = new URLSearchParams();
       
       if (startDate && endDate) {
@@ -202,8 +191,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ setIsAuthenticated }) =
       
       const url = `/api/status/export_csv/?${params.toString()}`;
       
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(url, {
         responseType: 'blob',
       });
 

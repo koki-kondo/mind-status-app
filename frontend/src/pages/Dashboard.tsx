@@ -29,7 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
 
   const fetchUserInfo = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await apiClient.get('/api/users/me/');
       const user = response.data;
       if (user && user.id) {
@@ -42,7 +41,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
 
   const fetchStatusLogs = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await apiClient.get('/api/status/');
       setStatusLogs(response.data.results || response.data);
       setLoading(false);
@@ -55,7 +53,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
   const handleSubmitStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('access_token');
       await apiClient.post('/api/status/', {
         status: newStatus,
         comment: newComment,
@@ -86,7 +83,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setIsAuthenticated }) => {
     }
 
     try {
-      const token = localStorage.getItem('access_token');
       await apiClient.delete(`/api/users/${userId}/delete_user/`);
 
       alert('アカウントを削除しました');

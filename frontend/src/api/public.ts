@@ -43,20 +43,10 @@ publicApi.interceptors.request.use(
     if (config.headers.common) {
       delete config.headers.common['Authorization'];
       delete config.headers.common.Authorization;
-    }
-    
-    // デバッグログ（本番環境では削除推奨）
-    console.log('[publicApi] Request:', {
-      url: config.url,
-      method: config.method,
-      hasAuth: !!config.headers['Authorization'],
-    });
-    
+    }        
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 /**
@@ -64,26 +54,10 @@ publicApi.interceptors.request.use(
  * 
  * 目的:
  * - エラーハンドリングの統一
- * - デバッグログ出力
  */
 publicApi.interceptors.response.use(
-  (response) => {
-    // デバッグログ（本番環境では削除推奨）
-    console.log('[publicApi] Response:', {
-      url: response.config.url,
-      status: response.status,
-    });
-    return response;
-  },
-  (error) => {
-    // エラーログ
-    console.error('[publicApi] Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.response?.data?.error || error.message,
-    });
-    return Promise.reject(error);
-  }
+  (response) => response,
+  (error) => Promise.reject(error)
 );
 
 export default publicApi;

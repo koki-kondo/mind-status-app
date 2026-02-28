@@ -56,13 +56,16 @@ const AdminRegisterPage: React.FC = () => {
 
     try {
       // ✅ 修正: 環境変数を使用 & エンドポイント名を修正
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/users/admin_register/`, {
-        email: formData.email,
-        password: formData.password,
-        full_name: formData.full_name,
-        organization_name: formData.organization_name,
-        org_type: formData.org_type
-      });
+      const response = await apiClient.post(
+        '/api/users/admin_register/',
+        {
+          email: formData.email,
+          password: formData.password,
+          full_name: formData.full_name,
+          organization_name: formData.organization_name,
+          org_type: formData.org_type
+        }
+      );
 
       if (response.data.success) {
         alert(`管理者アカウントが作成されました！\n\n組織: ${response.data.user.organization}\nタイプ: ${response.data.user.organization_type === 'SCHOOL' ? '学校' : '企業'}\n\nログインしてください。`);
