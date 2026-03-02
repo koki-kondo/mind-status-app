@@ -25,6 +25,9 @@ chardet==5.2.0
 openpyxl==3.1.2
 et-xmlfile==2.0.0
 
+# Email (SendGrid)
+sendgrid==6.11.0
+
 # Production server
 gunicorn==21.2.0
 whitenoise==6.6.0

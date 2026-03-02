@@ -202,16 +202,21 @@ CORS_ALLOW_HEADERS = [
 # プリフライトリクエストのキャッシュ時間
 CORS_PREFLIGHT_MAX_AGE = 86400
 
-
 # Email Settings
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+
+# SendGrid 設定（本番環境）
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', '')
+
+# SMTP設定（開発環境）
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@mindstatus.com')
 
+# 送信元アドレス
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@mindstatus.com')
 
 # Frontend URL (for email links)
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

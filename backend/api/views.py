@@ -10,7 +10,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Organization, User, StatusLog, InviteToken
 from .serializers import OrganizationSerializer, UserSerializer, StatusLogSerializer
+import logging
 
+logger = logging.getLogger(__name__)
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     """組織API"""
@@ -277,47 +279,31 @@ class UserViewSet(viewsets.ModelViewSet):
                 # 4. 招待トークン生成
                 invite_token = InviteToken.objects.create(
                     user=user,
+                    token_type='INVITE',
                     expires_at=timezone.now() + timedelta(days=7)
                 )
                 
                 # 5. 招待メール送信
                 try:
-                    from django.core.mail import send_mail
+                    from .utils.email import send_invite_email
                     from django.conf import settings
-                    
-                    invite_url = f"{settings.FRONTEND_URL}/invite/{invite_token.token}"
-                    
-                    print(f"📧 メール送信開始: {user.email}")
-                    print(f"   招待URL: {invite_url}")
-                    
-                    result = send_mail(
-                        subject='Mind Status への招待',
-                        message=f'''
-{user.full_name} 様
-
-Mind Status へようこそ!
-
-以下のURLからパスワードを設定してアカウントを有効化してください:
-{invite_url}
-
-※このリンクは7日間有効です。
-
----
-Mind Status 運営チーム
-''',
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[user.email],
-                        fail_silently=False,  # エラーを表示
-                    )
-                    print(f"✅ メール送信成功: {user.email} (結果: {result})")
-                    
-                except Exception as mail_error:
-                    # メール送信失敗はログに記録するが処理は続行
-                    print(f"❌ メール送信失敗 ({email}): {mail_error}")
-                    import traceback
-                    traceback.print_exc()
                 
-                success_list.append(user.email)
+                    invite_url = f"{settings.FRONTEND_URL}/invite/{invite_token.token}"
+
+                    success = send_invite_email(
+                        user_email=user.email,
+                        user_name=user.full_name,
+                        invite_url=invite_url
+                    )
+
+                    if not success:
+                        logger.warning(f'招待メール送信失敗: {user.email}')
+                    
+                except Exception as e:
+                    logger.error(
+                    f'招待メール送信中に予期しないエラー: {user.email} '
+                        f'- {type(e).__name__}: {str(e)}'
+                    )
                 
             except serializers.ValidationError as e:
                 # バリデーションエラー
@@ -345,76 +331,74 @@ Mind Status 運営チーム
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def verify_invite(self, request):
-        """
-        招待トークンの検証
+        """招待トークンを検証"""
+        token = request.query_params.get('token')
         
-        設計意図:
-        - ログイン中のユーザーがアクセスした場合、セッションを明示的にクリア
-        - セッション混在を防止し、招待フローを独立させる
-        """
-        from django.contrib.auth import logout
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        # ログイン中の場合は強制ログアウト
-        if request.user.is_authenticated:
-            user_email = request.user.email  # logout前に取得
-            logout(request)
-            logger.info(f'招待URL アクセス: {user_email} を強制ログアウトしました')
-        
-        token_str = request.query_params.get('token')
-        
-        if not token_str:
+        if not token:
             return Response(
-                {'error': 'トークンが指定されていません'},
+                {'error': 'トークンが必要です'},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            from .models import InviteToken
-            invite_token = InviteToken.objects.select_related('user').get(token=token_str)
+            # is_used=False を削除（is_valid()内で判定）
+            invite_token = InviteToken.objects.get(
+                token=token,
+                token_type='INVITE'
+            )
             
+            # is_valid() メソッドで判定
             if not invite_token.is_valid():
                 return Response(
-                    {'error': 'このトークンは無効または期限切れです'},
+                    {'error': 'トークンが無効または期限切れです'},
                     status=http_status.HTTP_400_BAD_REQUEST
                 )
             
+            # トークンに紐づくユーザー情報を返す
+            user = invite_token.user
             return Response({
-                'valid': True,
                 'user': {
-                    'email': invite_token.user.email,
-                    'full_name': invite_token.user.full_name
+                    'email': user.email,
+                    'full_name': user.full_name
                 }
             })
             
         except InviteToken.DoesNotExist:
             return Response(
-                {'error': 'トークンが見つかりません'},
-                status=http_status.HTTP_404_NOT_FOUND
+                {'error': '無効なトークンです'},
+                status=http_status.HTTP_400_BAD_REQUEST
             )
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
     def set_password_with_invite(self, request):
-        """招待トークンを使ってパスワードを設定"""
-        token_str = request.data.get('token')
+        """招待トークンを使ってパスワードを設定する"""
+        token = request.data.get('token')
         password = request.data.get('password')
         
-        if not token_str or not password:
+        if not token or not password:
             return Response(
                 {'error': 'トークンとパスワードが必要です'},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            from .models import InviteToken
-            invite_token = InviteToken.objects.select_related('user').get(token=token_str)
+            # is_used=False を削除（is_valid()内で判定）
+            invite_token = InviteToken.objects.get(
+                token=token,
+                token_type='INVITE'
+            )
             
+            # is_valid() メソッドで判定
             if not invite_token.is_valid():
                 return Response(
-                    {'error': 'このトークンは無効または期限切れです'},
+                    {'error': 'トークンが無効または期限切れです'},
                     status=http_status.HTTP_400_BAD_REQUEST
                 )
+            
+            # パスワード強度チェック
+            error = self._validate_password_strength(password)
+            if error:
+                return Response({'error': error}, status=http_status.HTTP_400_BAD_REQUEST)
             
             # パスワード設定
             user = invite_token.user
@@ -433,8 +417,8 @@ Mind Status 運営チーム
             
         except InviteToken.DoesNotExist:
             return Response(
-                {'error': 'トークンが見つかりません'},
-                status=http_status.HTTP_404_NOT_FOUND
+                {'error': '無効なトークンです'},
+                status=http_status.HTTP_400_BAD_REQUEST
             )
     
     # ─── パスワード変更（ログイン済みユーザー） ─────────────────
@@ -491,38 +475,36 @@ Mind Status 運営チーム
                 'message': 'メールアドレスが登録されている場合、リセットリンクが送られます'
             })
         
-        # リセットトークン生成（InviteTokenを再利用）
+        # リセットトークン生成
         from .models import InviteToken
         reset_token = InviteToken.objects.create(
             user=user,
+            token_type='RESET',
             expires_at=timezone.now() + timedelta(hours=1)  # 1時間有効
         )
         
-        # リセットメール送信
-        from django.core.mail import send_mail
-        from django.conf import settings
-        
-        reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset_token.token}"
-        
-        send_mail(
-            subject='Mind Status - パスワードリセット',
-            message=f'''{user.full_name} 様
+        # リセットメール送信（外部API障害でサービス全体が落ちないように保護）
+        try:
+            from .utils.email import send_password_reset_email
+            from django.conf import settings
 
-パスワードリセットの申し込みを受け付けました。
+            reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset_token.token}"
 
-以下のURLからパスワードを再設定してください:
-{reset_url}
+            success = send_password_reset_email(
+                user_email=user.email,
+                user_name=user.full_name,
+                reset_url=reset_url
+            )
 
-※このリンクは1時間有効です。
-※このメールに覚えがない場合は無視してください。
-
----
-Mind Status 運営チーム
-''',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
+            if not success:
+                logger.warning(f'パスワードリセットメール送信失敗: {user.email}')
+                
+        except Exception as e:
+            # メール送信失敗してもトークンは作成済みなので処理は続行
+            logger.error(
+                f'パスワードリセットメール送信中に予期しないエラー: {user.email} '
+                f'- {type(e).__name__}: {str(e)}'
+            )
         
         return Response({
             'success': True,
@@ -532,49 +514,53 @@ Mind Status 運営チーム
     # ─── パスワード再設定（リセットトークン使用） ────────────────
     @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
     def reset_password(self, request):
-        """リセットトークンを使ってパスワードを再設定"""
-        token_str = request.data.get('token')
-        new_password = request.data.get('password')
+        """パスワードリセットトークンを使って新しいパスワードを設定する"""
+        token = request.data.get('token')
+        password = request.data.get('password')
         
-        if not token_str or not new_password:
+        if not token or not password:
             return Response(
                 {'error': 'トークンとパスワードが必要です'},
                 status=http_status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            from .models import InviteToken
-            token_obj = InviteToken.objects.select_related('user').get(token=token_str)
+            # is_used=False を削除（is_valid()内で判定）
+            reset_token = InviteToken.objects.get(
+                token=token,
+                token_type='RESET'
+            )
             
-            if not token_obj.is_valid():
+            # is_valid() メソッドで判定
+            if not reset_token.is_valid():
                 return Response(
-                    {'error': 'このトークンは無効または期限切れです'},
+                    {'error': 'トークンが無効または期限切れです'},
                     status=http_status.HTTP_400_BAD_REQUEST
                 )
             
             # パスワード強度チェック
-            error = self._validate_password_strength(new_password)
+            error = self._validate_password_strength(password)
             if error:
                 return Response({'error': error}, status=http_status.HTTP_400_BAD_REQUEST)
             
-            # パスワード再設定
-            user = token_obj.user
-            user.set_password(new_password)
+            # パスワード設定
+            user = reset_token.user
+            user.set_password(password)
             user.save()
             
             # トークンを使用済みに
-            token_obj.is_used = True
-            token_obj.save()
+            reset_token.is_used = True
+            reset_token.save()
             
             return Response({
                 'success': True,
-                'message': 'パスワードが再設定されました。ログインしてください。'
+                'message': 'パスワードがリセットされました。ログインしてください。'
             })
             
         except InviteToken.DoesNotExist:
             return Response(
-                {'error': 'トークンが見つかりません'},
-                status=http_status.HTTP_404_NOT_FOUND
+                {'error': '無効なトークンです'},
+                status=http_status.HTTP_400_BAD_REQUEST
             )
     
     # ─── パスワード強度チェック（共通） ───────────────────────────
@@ -810,8 +796,8 @@ class StatusLogViewSet(viewsets.ModelViewSet):
         today = now_jst.date()
         
         # デバッグログ
-        print(f"[DEBUG] Current time (JST): {now_jst}")
-        print(f"[DEBUG] Today's date: {today}")
+        logger.debug(f"Current time (JST): {now_jst}")
+        logger.debug(f"Today's date: {today}")
         
         # 全ユーザー数（管理者を除外・有効化済みのみ）
         total_users = User.objects.filter(
@@ -844,7 +830,10 @@ class StatusLogViewSet(viewsets.ModelViewSet):
             
             if latest_status:
                 # デバッグログ
-                print(f"[DEBUG] User: {user.full_name}, Status: {latest_status.status}, Time: {latest_status.created_at}")
+                logger.debug(
+                f"User: {user.full_name}, Status: {latest_status.status}, "
+                    f"Time: {latest_status.created_at}"
+                )
                 
                 today_recorded += 1
                 status_distribution[latest_status.status] += 1

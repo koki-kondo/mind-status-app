@@ -126,31 +126,65 @@ class User(AbstractUser):
 
 
 class InviteToken(models.Model):
-    """招待トークンモデル"""
+    """招待・パスワードリセットトークンモデル（最適化版）"""
+    
+    TOKEN_TYPE_CHOICES = [
+        ('INVITE', '招待'),
+        ('RESET', 'パスワードリセット'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
         related_name='invite_tokens',
-        verbose_name='招待されたユーザー'
+        verbose_name='対象ユーザー'
     )
-    token = models.UUIDField('トークン', default=uuid.uuid4, unique=True)
+    token = models.UUIDField(
+        'トークン', 
+        default=uuid.uuid4, 
+        unique=True, 
+        db_index=True  # 単体インデックスで十分（unique=Trueのため複合不要）
+    )
+    token_type = models.CharField(
+        'トークン種別',
+        max_length=10,
+        choices=TOKEN_TYPE_CHOICES,
+        default='INVITE',
+        help_text='招待 or パスワードリセット'
+    )
     expires_at = models.DateTimeField('有効期限')
     is_used = models.BooleanField('使用済み', default=False)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     
     class Meta:
         db_table = 'invite_tokens'
-        verbose_name = '招待トークン'
-        verbose_name_plural = '招待トークン'
+        verbose_name = '招待・リセットトークン'
+        verbose_name_plural = '招待・リセットトークン'
+        # 不要な複合インデックスを削除
+        # token は unique=True かつ db_index=True のため単体で最適化済み
     
     def __str__(self):
-        return f"Invite for {self.user.email}"
+        type_display = self.get_token_type_display()
+        status = '使用済み' if self.is_used else '有効'
+        return f"{self.user.email} - {type_display} - {status}"
     
     def is_valid(self):
-        """トークンが有効かチェック"""
-        return not self.is_used and timezone.now() < self.expires_at
+        """
+        トークンが有効かチェック
+        
+        Returns:
+            bool: 有効な場合True、無効な場合False
+        
+        無効条件:
+            - 既に使用済み (is_used=True)
+            - 有効期限切れ (expires_at < now)
+        """
+        if self.is_used:
+            return False
+        if timezone.now() > self.expires_at:
+            return False
+        return True
 
 
 class StatusLog(models.Model):
