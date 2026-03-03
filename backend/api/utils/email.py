@@ -1,4 +1,4 @@
-# backend/api/utils/email.py 
+# backend/api/utils/email.py (メールクライアント互換性最優先版)
 import logging
 from django.conf import settings
 from sendgrid import SendGridAPIClient
@@ -109,14 +109,14 @@ def _send_via_sendgrid(api_key, user_email, user_name, invite_url):
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
             </head>
-            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 20px 0;">
                     <tr>
                         <td align="center">
                             <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                 <!-- ヘッダー -->
                                 <tr>
-                                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
+                                    <td bgcolor="#667eea" style="background-color: #667eea; padding: 40px; text-align: center;">
                                         <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Mind Status</h1>
                                     </td>
                                 </tr>
@@ -131,21 +131,33 @@ def _send_via_sendgrid(api_key, user_email, user_name, invite_url):
                                             以下のボタンからパスワードを設定してアカウントを有効化してください。
                                         </p>
                                         
-                                        <!-- ボタン -->
+                                        <!-- ボタン（メールクライアント互換性最優先） -->
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td align="center" style="padding: 20px 0;">
-                                                    <a href="{invite_url}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
-                                                        アカウントを有効化
-                                                    </a>
+                                                    <table cellpadding="0" cellspacing="0" border="0">
+                                                        <tr>
+                                                            <td bgcolor="#667eea" style="background-color: #667eea; border-radius: 8px; padding: 16px 40px;">
+                                                                <a href="{invite_url}" style="display: inline-block; color:#ffffff !important; text-decoration: none; font-weight: 600; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                                                                    アカウントを有効化
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
                                                 </td>
                                             </tr>
                                         </table>
                                         
+                                        <!-- リンクのフォールバック -->
+                                        <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 10px 0; text-align: center;">
+                                            ボタンが表示されない場合は、以下のURLをコピーしてブラウザで開いてください：<br>
+                                            <a href="{invite_url}" style="color: #667eea; word-break: break-all;">{invite_url}</a>
+                                        </p>
+                                        
                                         <!-- 注意事項 -->
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 30px 0;">
                                             <tr>
-                                                <td style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                                <td bgcolor="#fff3cd" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
                                                     <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.5;">
                                                         <strong>⏰ このリンクは7日間有効です</strong><br>
                                                         期限切れの場合は、管理者に再発行を依頼してください。
@@ -163,7 +175,7 @@ def _send_via_sendgrid(api_key, user_email, user_name, invite_url):
                                 
                                 <!-- フッター -->
                                 <tr>
-                                    <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+                                    <td bgcolor="#f8f9fa" style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
                                         <p style="margin: 5px 0; color: #999999; font-size: 12px;">Mind Status 運営チーム</p>
                                         <p style="margin: 5px 0; color: #999999; font-size: 12px;">このメールは自動送信されています</p>
                                     </td>
@@ -220,14 +232,14 @@ def _send_password_reset_via_sendgrid(api_key, user_email, user_name, reset_url)
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
             </head>
-            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 20px 0;">
                     <tr>
                         <td align="center">
                             <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                 <!-- ヘッダー -->
                                 <tr>
-                                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
+                                    <td bgcolor="#667eea" style="background-color: #667eea; padding: 40px; text-align: center;">
                                         <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Mind Status</h1>
                                     </td>
                                 </tr>
@@ -242,21 +254,33 @@ def _send_password_reset_via_sendgrid(api_key, user_email, user_name, reset_url)
                                             以下のボタンから新しいパスワードを設定してください。
                                         </p>
                                         
-                                        <!-- ボタン -->
+                                        <!-- ボタン（メールクライアント互換性最優先） -->
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td align="center" style="padding: 20px 0;">
-                                                    <a href="{reset_url}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
-                                                        パスワードをリセット
-                                                    </a>
+                                                    <table cellpadding="0" cellspacing="0" border="0">
+                                                        <tr>
+                                                            <td bgcolor="#667eea" style="background-color: #667eea; border-radius: 8px; padding: 16px 40px;">
+                                                                <a href="{reset_url}" style="display: inline-block; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                                                                    パスワードをリセット
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
                                                 </td>
                                             </tr>
                                         </table>
                                         
+                                        <!-- リンクのフォールバック -->
+                                        <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 10px 0; text-align: center;">
+                                            ボタンが表示されない場合は、以下のURLをコピーしてブラウザで開いてください：<br>
+                                            <a href="{reset_url}" style="color: #667eea; word-break: break-all;">{reset_url}</a>
+                                        </p>
+                                        
                                         <!-- 注意事項 -->
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 30px 0;">
                                             <tr>
-                                                <td style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                                <td bgcolor="#fff3cd" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
                                                     <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.5;">
                                                         <strong>⏰ このリンクは1時間有効です</strong>
                                                     </p>
@@ -273,7 +297,7 @@ def _send_password_reset_via_sendgrid(api_key, user_email, user_name, reset_url)
                                 
                                 <!-- フッター -->
                                 <tr>
-                                    <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+                                    <td bgcolor="#f8f9fa" style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
                                         <p style="margin: 5px 0; color: #999999; font-size: 12px;">Mind Status 運営チーム</p>
                                     </td>
                                 </tr>
