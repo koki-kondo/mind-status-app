@@ -1,4 +1,4 @@
-# backend/api/utils/email.py (改善版)
+# backend/api/utils/email.py 
 import logging
 from django.conf import settings
 from sendgrid import SendGridAPIClient
@@ -103,59 +103,75 @@ def _send_via_sendgrid(api_key, user_email, user_name, invite_url):
             to_emails=user_email,
             subject='Mind Status への招待',
             html_content=f'''
+            <!DOCTYPE html>
             <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-                         line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; 
-                         padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">Mind Status</h1>
-                </div>
-                
-                <div style="background: #f7f9fc; padding: 40px 30px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #333; margin-top: 0;">ようこそ、{user_name} 様</h2>
-                    
-                    <p style="font-size: 16px; line-height: 1.8; margin: 20px 0;">
-                        Mind Status へのご招待です。<br>
-                        以下のボタンからパスワードを設定してアカウントを有効化してください。
-                    </p>
-                    
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="{invite_url}" 
-                           style="display: inline-block; 
-                                  padding: 16px 40px; 
-                                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                  color: white; 
-                                  text-decoration: none; 
-                                  border-radius: 8px;
-                                  font-weight: 600;
-                                  font-size: 16px;
-                                  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
-                            アカウントを有効化
-                        </a>
-                    </div>
-                    
-                    <div style="background: #fff3cd; 
-                                border-left: 4px solid #ffc107; 
-                                padding: 15px; 
-                                margin: 25px 0;
-                                border-radius: 4px;">
-                        <p style="margin: 0; color: #856404; font-size: 14px;">
-                            <strong>⏰ このリンクは7日間有効です</strong><br>
-                            期限切れの場合は、管理者に再発行を依頼してください。
-                        </p>
-                    </div>
-                    
-                    <p style="color: #666; font-size: 13px; margin-top: 30px; line-height: 1.6;">
-                        ※このメールに心当たりがない場合は、このまま削除してください。<br>
-                        第三者がメールアドレスを誤って入力した可能性があります。
-                    </p>
-                </div>
-                
-                <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-                    <p style="margin: 5px 0;">Mind Status 運営チーム</p>
-                    <p style="margin: 5px 0;">このメールは自動送信されています</p>
-                </div>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 20px 0;">
+                    <tr>
+                        <td align="center">
+                            <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <!-- ヘッダー -->
+                                <tr>
+                                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
+                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Mind Status</h1>
+                                    </td>
+                                </tr>
+                                
+                                <!-- メインコンテンツ -->
+                                <tr>
+                                    <td style="padding: 40px 30px;">
+                                        <h2 style="color: #333333; margin: 0 0 20px 0; font-size: 22px;">ようこそ、{user_name} 様</h2>
+                                        
+                                        <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                                            Mind Status へのご招待です。<br>
+                                            以下のボタンからパスワードを設定してアカウントを有効化してください。
+                                        </p>
+                                        
+                                        <!-- ボタン -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td align="center" style="padding: 20px 0;">
+                                                    <a href="{invite_url}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                                        アカウントを有効化
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- 注意事項 -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 30px 0;">
+                                            <tr>
+                                                <td style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                                    <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.5;">
+                                                        <strong>⏰ このリンクは7日間有効です</strong><br>
+                                                        期限切れの場合は、管理者に再発行を依頼してください。
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 20px 0 0 0;">
+                                            ※このメールに心当たりがない場合は、このまま削除してください。<br>
+                                            第三者がメールアドレスを誤って入力した可能性があります。
+                                        </p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- フッター -->
+                                <tr>
+                                    <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+                                        <p style="margin: 5px 0; color: #999999; font-size: 12px;">Mind Status 運営チーム</p>
+                                        <p style="margin: 5px 0; color: #999999; font-size: 12px;">このメールは自動送信されています</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             '''
@@ -198,57 +214,73 @@ def _send_password_reset_via_sendgrid(api_key, user_email, user_name, reset_url)
             to_emails=user_email,
             subject='Mind Status - パスワードリセット',
             html_content=f'''
+            <!DOCTYPE html>
             <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-                         line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; 
-                         padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">Mind Status</h1>
-                </div>
-                
-                <div style="background: #f7f9fc; padding: 40px 30px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #333; margin-top: 0;">{user_name} 様</h2>
-                    
-                    <p style="font-size: 16px; line-height: 1.8; margin: 20px 0;">
-                        パスワードリセットのリクエストを受け付けました。<br>
-                        以下のボタンから新しいパスワードを設定してください。
-                    </p>
-                    
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="{reset_url}" 
-                           style="display: inline-block; 
-                                  padding: 16px 40px; 
-                                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                  color: white; 
-                                  text-decoration: none; 
-                                  border-radius: 8px;
-                                  font-weight: 600;
-                                  font-size: 16px;
-                                  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
-                            パスワードをリセット
-                        </a>
-                    </div>
-                    
-                    <div style="background: #fff3cd; 
-                                border-left: 4px solid #ffc107; 
-                                padding: 15px; 
-                                margin: 25px 0;
-                                border-radius: 4px;">
-                        <p style="margin: 0; color: #856404; font-size: 14px;">
-                            <strong>⏰ このリンクは1時間有効です</strong>
-                        </p>
-                    </div>
-                    
-                    <p style="color: #666; font-size: 13px; margin-top: 30px; line-height: 1.6;">
-                        ※このリクエストに心当たりがない場合は、このメールを無視してください。<br>
-                        パスワードは変更されません。
-                    </p>
-                </div>
-                
-                <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-                    <p style="margin: 5px 0;">Mind Status 運営チーム</p>
-                </div>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 20px 0;">
+                    <tr>
+                        <td align="center">
+                            <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <!-- ヘッダー -->
+                                <tr>
+                                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
+                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Mind Status</h1>
+                                    </td>
+                                </tr>
+                                
+                                <!-- メインコンテンツ -->
+                                <tr>
+                                    <td style="padding: 40px 30px;">
+                                        <h2 style="color: #333333; margin: 0 0 20px 0; font-size: 22px;">{user_name} 様</h2>
+                                        
+                                        <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                                            パスワードリセットのリクエストを受け付けました。<br>
+                                            以下のボタンから新しいパスワードを設定してください。
+                                        </p>
+                                        
+                                        <!-- ボタン -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td align="center" style="padding: 20px 0;">
+                                                    <a href="{reset_url}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                                        パスワードをリセット
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- 注意事項 -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 30px 0;">
+                                            <tr>
+                                                <td style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                                    <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.5;">
+                                                        <strong>⏰ このリンクは1時間有効です</strong>
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 20px 0 0 0;">
+                                            ※このリクエストに心当たりがない場合は、このメールを無視してください。<br>
+                                            パスワードは変更されません。
+                                        </p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- フッター -->
+                                <tr>
+                                    <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+                                        <p style="margin: 5px 0; color: #999999; font-size: 12px;">Mind Status 運営チーム</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             '''

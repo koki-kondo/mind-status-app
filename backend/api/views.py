@@ -304,6 +304,11 @@ class UserViewSet(viewsets.ModelViewSet):
                     f'招待メール送信中に予期しないエラー: {user.email} '
                         f'- {type(e).__name__}: {str(e)}'
                     )
+                    
+                success_list.append({
+                    'row': row_num,
+                    'email': user.email
+                })
                 
             except serializers.ValidationError as e:
                 # バリデーションエラー
