@@ -18,6 +18,9 @@ const ResetPasswordPage: React.FC = () => {
 
   // ページ表示時にRESETトークンを検証
   useEffect(() => {
+    // token が存在する場合のみ検証実行
+    if (!token) return;
+
     const verify = async () => {
       try {
         // verify_reset を使用（RESET トークン専用）
@@ -28,6 +31,7 @@ const ResetPasswordPage: React.FC = () => {
         setLoading(false);
       }
     };
+    
     verify();
   }, [token]);
 

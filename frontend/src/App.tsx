@@ -29,11 +29,12 @@ function App() {
 
   React.useEffect(() => {
     // React Router の useLocation から取得
-    const isInviteRoute = location.pathname.startsWith('/invite/');
-    
-    if (isInviteRoute) {
-      // 招待ルートの場合: 認証チェックをスキップし、強制ログアウト
-      console.log('[App] 招待ルート検出 → 認証チェックスキップ');
+    const isPublicRoute =
+      location.pathname.startsWith('/invite/') ||
+      location.pathname.startsWith('/reset-password/') ||
+      location.pathname === '/forgot-password';
+
+    if (isPublicRoute) {
       handleLogout();
       setIsLoadingRole(false);
       return;
