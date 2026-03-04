@@ -28,21 +28,22 @@ function App() {
   }, []);
 
   React.useEffect(() => {
-    // React Router の useLocation から取得
+    // 公開ルート判定
     const isPublicRoute =
       location.pathname.startsWith('/invite/') ||
       location.pathname.startsWith('/reset-password/') ||
       location.pathname === '/forgot-password';
 
     if (isPublicRoute) {
-      handleLogout();
+      // 公開ルートでは認証チェックのみスキップ
+      // handleLogout() は実行しない（不要な再レンダリング防止）
       setIsLoadingRole(false);
       return;
     }
 
     // 通常ルートの場合: 認証チェック実行
     const token = localStorage.getItem('access_token');
-    
+  
     if (!token) {
       setIsLoadingRole(false);
       return;

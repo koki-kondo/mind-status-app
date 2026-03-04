@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../api/client';
+import publicApi from '../api/public';
 import './InvitePage.css'; // 同じベーススタイルを再利用
 
 const ResetPasswordPage: React.FC = () => {
@@ -24,7 +24,7 @@ const ResetPasswordPage: React.FC = () => {
     const verify = async () => {
       try {
         // verify_reset を使用（RESET トークン専用）
-        await apiClient.get(`/api/users/verify_reset/?token=${token}`);
+        await publicApi.get(`/api/users/verify_reset/?token=${token}`);
         setLoading(false);
       } catch (err: any) {
         setError(err.response?.data?.error || 'トークンが無効です');
@@ -53,7 +53,7 @@ const ResetPasswordPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await apiClient.post('/api/users/reset_password/', { token, password });
+      await publicApi.post('/api/users/reset_password/', { token, password });
       setSuccess(true);
     } catch (err: any) {
       setPasswordError(err.response?.data?.error || 'パスワード再設定に失敗しました');
