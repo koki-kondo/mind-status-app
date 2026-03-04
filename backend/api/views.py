@@ -336,7 +336,11 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def verify_invite(self, request):
-        """招待トークンを検証"""
+        """
+        招待トークンを検証
+        
+        GET /api/users/verify_invite/?token=xxx
+        """
         token = request.query_params.get('token')
         
         if not token:
@@ -346,13 +350,13 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            # is_used=False を削除（is_valid()内で判定）
+            # INVITE トークンのみ検証（token_type 追加）
             invite_token = InviteToken.objects.get(
                 token=token,
-                token_type='INVITE'
+                token_type='INVITE'  # ← 追加
             )
             
-            # is_valid() メソッドで判定
+            # is_valid() メソッドで一元判定
             if not invite_token.is_valid():
                 return Response(
                     {'error': 'トークンが無効または期限切れです'},
@@ -362,6 +366,55 @@ class UserViewSet(viewsets.ModelViewSet):
             # トークンに紐づくユーザー情報を返す
             user = invite_token.user
             return Response({
+                'user': {
+                    'email': user.email,
+                    'full_name': user.full_name
+                }
+            })
+            
+        except InviteToken.DoesNotExist:
+            return Response(
+                {'error': '無効なトークンです'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def verify_reset(self, request):
+        """
+        パスワードリセットトークンを検証
+        
+        GET /api/users/verify_reset/?token=xxx
+        
+        Returns:
+            200: トークン有効
+            400: トークン無効（使用済み/期限切れ/存在しない）
+        """
+        token = request.query_params.get('token')
+        
+        if not token:
+            return Response(
+                {'error': 'トークンが必要です'},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # RESET トークンのみ検証
+            reset_token = InviteToken.objects.get(
+                token=token,
+                token_type='RESET'
+            )
+            
+            # is_valid() メソッドで一元判定
+            if not reset_token.is_valid():
+                return Response(
+                    {'error': 'トークンが無効または期限切れです'},
+                    status=http_status.HTTP_400_BAD_REQUEST
+                )
+            
+            # トークンに紐づくユーザー情報を返す
+            user = reset_token.user
+            return Response({
+                'message': '有効なトークンです',
                 'user': {
                     'email': user.email,
                     'full_name': user.full_name

@@ -11,7 +11,7 @@
 - **ステータス記録**: 〇/△/✕の3段階 + 任意コメント
 - **管理者ダッシュボード**: グラフによる可視化、アラート検知、トレンド分析
 - **一括登録機能**: Excel（2シート構成）/CSVでメンバーを一括登録、招待メール自動送信
-- **セキュアな招待フロー**: 完全未認証フロー、JWT/Session分離、多層防御
+- **セキュアな招待フロー**: 完全未認証フロー（token_type区別）、JWT/Session分離、多層防御
 - **データエクスポート**: Excel形式でのエクスポート、フィルタリング・期間指定機能
 - **パスワード管理**: パスワード変更、リセット機能
 
@@ -23,7 +23,7 @@
 - **TypeScript** - 型安全性の確保
 - **React 18** - UIライブラリ
 - **React Router v6** - SPAルーティング（BrowserRouter方式）
-- **Axios** - HTTP通信（interceptorパターン）
+- **Axios** - HTTP通信（interceptorパターン、APIクライアント一元化）
 - **Recharts** - データ可視化
 
 ### バックエンド
@@ -35,14 +35,17 @@
 
 ### 認証・セキュリティ
 - **JWT (Simple JWT)** - トークン認証
-- **Django Session** - セッション管理
+- **SendGrid** - メール送信（本番環境）
+- **SMTP（開発環境のみ）** - ローカルメール送信
 - **bcrypt** - パスワードハッシュ化
 - **完全未認証フロー** - 招待URL専用publicApi + InviteRouteHandler
+- **トークン用途区別** - INVITE/RESET 型で誤用防止
 
 ### インフラ
 - **Docker / Docker Compose** - 開発環境
-- **Render.com** - 本番環境（予定）
-- **Gmail SMTP** - メール送信
+- **Render.com** - 本番バックエンド（PostgreSQL内蔵）
+- **Vercel** - 本番フロントエンド
+- **SendGrid** - 本番メール送信（無料枠: 100通/日）
 
 ---
 
@@ -52,7 +55,7 @@
 
 - Docker Desktop がインストールされていること
 - Git がインストールされていること
-- Gmail アカウント（招待メール送信用）
+- SendGrid アカウント（本番環境用）または Gmail アカウント（開発環境用）
 
 ### 1. リポジトリのクローン
 
@@ -64,11 +67,23 @@ cd mind-status-app
 ### 2. 環境変数の設定
 
 ```bash
-# .env ファイルを作成
-# プロジェクトルートに .env ファイルを配置
+# フロントエンド環境変数
+cd frontend
+cp .env.example .env
+
+# バックエンド環境変数（Docker Composeで自動読み込み）
+cd ..
+cp .env.example .env
 ```
 
-**`.env` の内容例:**
+#### **`frontend/.env` の内容例:**
+
+```env
+# バックエンドAPI URL
+REACT_APP_API_URL=http://localhost:8000
+```
+
+#### **`.env`（プロジェクトルート）の内容例:**
 
 ```env
 # Django Settings
@@ -83,34 +98,54 @@ DB_PASSWORD=postgres
 DB_HOST=db
 DB_PORT=5432
 
-# Email Settings (Gmail SMTP)
+# Email Settings
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+DEFAULT_FROM_EMAIL=noreply@mindstatus.com
+FRONTEND_URL=http://localhost:3000
+
+# SendGrid（本番環境用 - 開発環境では不要）
+# SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxx
+
+# SMTP（開発環境用 - 本番では使用しない）
+# EMAIL_HOST=smtp.gmail.com
+# EMAIL_PORT=587
+# EMAIL_USE_TLS=True
+# EMAIL_HOST_USER=your-email@gmail.com
+# EMAIL_HOST_PASSWORD=your-16-digit-app-password
+
+# CORS Settings
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# JWT Settings
+JWT_ACCESS_TOKEN_LIFETIME=60
+JWT_REFRESH_TOKEN_LIFETIME=7
+```
+
+### 3. メール設定（開発環境）
+
+#### オプション1: コンソール出力（推奨）
+デフォルトで `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend` が設定されており、招待URLがコンソールに出力されます。
+
+```bash
+# Docker ログで確認
+docker-compose logs -f backend
+```
+
+#### オプション2: Gmail SMTP
+
+1. Google アカウントの[セキュリティ設定](https://myaccount.google.com/security)を開く
+2. 2段階認証を有効化
+3. [アプリパスワード](https://myaccount.google.com/apppasswords)を生成
+4. `.env` を更新:
+
+```env
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=your-email@gmail.com
 EMAIL_HOST_PASSWORD=your-16-digit-app-password
-DEFAULT_FROM_EMAIL=Mind Status <your-email@gmail.com>
-
-# Frontend URL
-FRONTEND_URL=http://localhost:3000
-
-# CORS Settings
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-
-# JWT Settings
-JWT_ACCESS_TOKEN_LIFETIME=60  # minutes
-JWT_REFRESH_TOKEN_LIFETIME=7  # days
 ```
-
-### 3. Gmail アプリパスワードの取得
-
-招待メール機能を使用するには、Gmail のアプリパスワードが必要です。
-
-1. Google アカウントの[セキュリティ設定](https://myaccount.google.com/security)を開く
-2. 2段階認証を有効化
-3. [アプリパスワード](https://myaccount.google.com/apppasswords)を生成
-4. 16桁のパスワードを `.env` の `EMAIL_HOST_PASSWORD` に設定
 
 ### 4. Docker起動
 
@@ -181,9 +216,6 @@ docker-compose exec backend python manage.py makemigrations
 # マイグレーション実行
 docker-compose exec backend python manage.py migrate
 
-# Django管理者作成
-docker-compose exec backend python manage.py createsuperuser
-
 # Djangoシェル
 docker-compose exec backend python manage.py shell
 ```
@@ -245,17 +277,23 @@ mind-status-app/
 │   │   ├── urls.py           # URLルーティング
 │   │   └── wsgi.py           # WSGI設定
 │   ├── api/                   # APIアプリケーション
-│   │   ├── models.py         # データモデル
-│   │   ├── serializers.py    # シリアライザー
-│   │   ├── views.py          # ビュー
-│   │   ├── validators.py     # バリデーター
+│   │   ├── models.py         # データモデル（token_type追加）
+│   │   ├── serializers.py    # シリアライザー（JWT修正済み）
+│   │   ├── views.py          # ビュー（logger統一）
+│   │   ├── utils/
+│   │   │   └── email.py      # メール送信（SendGrid対応）
+│   │   ├── management/
+│   │   │   └── commands/
+│   │   │       └── create_superuser.py  # 環境変数から管理者作成
 │   │   └── admin.py          # 管理画面設定
 │   ├── Dockerfile            # Dockerイメージ定義
+│   ├── build.sh              # Render.comビルドスクリプト
 │   └── requirements.txt      # Python依存関係
 │
 ├── frontend/                  # Reactフロントエンド
 │   ├── src/
 │   │   ├── api/              # API通信
+│   │   │   ├── client.ts     # APIクライアント（一元化）
 │   │   │   └── public.ts     # 未認証API（interceptor）
 │   │   ├── components/       # 再利用コンポーネント
 │   │   │   ├── InviteRouteHandler.tsx  # 招待ルート制御
@@ -268,9 +306,10 @@ mind-status-app/
 │   │   │   ├── InvitePage.tsx
 │   │   │   ├── ForgotPasswordPage.tsx
 │   │   │   ├── ResetPasswordPage.tsx
-│   │   │   └── ChangePasswordPage.tsx
+│   │   │   ├── ChangePasswordPage.tsx
+│   │   │   └── AdminRegisterPage.tsx
 │   │   ├── App.tsx           # ルートコンポーネント
-│   │   └── index.tsx         # エントリーポイント（BrowserRouter配置）
+│   │   └── index.tsx         # エントリーポイント
 │   ├── public/               # 静的ファイル
 │   ├── Dockerfile            # Dockerイメージ定義
 │   └── package.json          # npm依存関係
@@ -290,6 +329,7 @@ mind-status-app/
 
 - **JWT + Session 認証**: トークン認証とセッション管理の併用
 - **完全未認証フロー**: 招待URLは認証チェックを完全スキップ
+- **トークン用途区別**: `token_type='INVITE'` / `'RESET'` で誤用防止
 - **多層防御**:
   - バックエンド: `AllowAny` + `logout(request)` で強制ログアウト
   - フロントエンド: `localStorage`削除 + `publicApi`（interceptor）
@@ -298,9 +338,14 @@ mind-status-app/
 - **CSRF保護**: Django標準機能
 - **XSS対策**: React標準機能 + Content-Security-Policy
 - **SQLインジェクション対策**: Django ORM使用
-- **パスワードハッシュ化**: PBKDF2 + bcrypt
+- **パスワードハッシュ化**: PBKDF2（必ず create_user() 経由）
 - **Gender バリデーション**: Unicode正規化（NFKC） + マッピング
 - **メールバリデーション**: 重複チェック + 形式チェック
+- **メール送信安全設計**:
+  - 本番環境: SendGrid（HTTP API）のみ使用
+  - 開発環境: SMTP フォールバック可能
+  - settings 安全参照（`getattr`）でAttributeError防止
+  - try-except保護でワーカークラッシュ防止
 
 ---
 
@@ -309,6 +354,22 @@ mind-status-app/
 このプロジェクトは、実務レベルのWebアプリケーション開発のベストプラクティスを実装しています。
 
 ### 1. 完全未認証フローの実装（招待システム）
+
+#### トークン用途区別による誤用防止
+```python
+# models.py
+TOKEN_TYPE_CHOICES = [
+    ('INVITE', '招待'),
+    ('RESET', 'パスワードリセット'),
+]
+token_type = models.CharField(max_length=10, choices=TOKEN_TYPE_CHOICES, default='INVITE')
+
+# views.py - 招待検証
+invite_token = InviteToken.objects.get(token=token, token_type='INVITE')
+
+# views.py - リセット検証
+reset_token = InviteToken.objects.get(token=token, token_type='RESET')
+```
 
 #### useLayoutEffect による画面描画前の制御
 - **render phase** では state 更新が禁止されている
@@ -342,6 +403,46 @@ mind-status-app/
 - SPA遷移での正しい再評価を実現
 - location.pathname を dependency array に含めることで、ルート変更時に自動再評価
 
+### 3. メール送信の安全設計
+
+#### SendGrid HTTP API使用
+```python
+# 本番環境では SMTP ポートがブロックされている
+# → HTTP API（SendGrid）を使用
+api_key = getattr(settings, 'SENDGRID_API_KEY', None)
+is_production = not getattr(settings, 'DEBUG', False)
+
+if api_key:
+    return _send_via_sendgrid(api_key, user_email, user_name, invite_url)
+
+if is_production:
+    logger.error('本番環境でAPIキー未設定')
+    return False  # SMTP に絶対にフォールバックしない
+```
+
+#### メールクライアント互換性
+```html
+<!-- グラデーション非対応 → 単色背景 -->
+<td bgcolor="#667eea" style="background-color: #667eea;">
+    <a href="{url}" style="color: #ffffff;">ボタン</a>
+</td>
+```
+
+### 4. JWT認証の確実な動作保証
+
+#### 必ず create_user() を使用
+```python
+# serializers.py - BulkUploadUserSerializer
+def create(self, validated_data):
+    password = validated_data.pop('password', None)
+    
+    # 必ず create_user() を使用（password が None でも OK）
+    # → set_password() が必ず実行される
+    # → JWT認証が正常動作する
+    user = User.objects.create_user(password=password, **validated_data)
+    return user
+```
+
 ---
 
 ## 📄 ライセンス
@@ -353,3 +454,34 @@ mind-status-app/
 ## 👤 作成者
 
 作成日: 2026年2月
+
+---
+
+## 🔄 最新の改善内容（2026年3月）
+
+### セキュリティ・設計改善
+- ✅ トークン用途区別（INVITE/RESET）追加
+- ✅ is_valid() メソッドの一元化
+- ✅ settings 安全参照（getattr使用）
+- ✅ print → logger 統一
+- ✅ メール送信 try-except 保護
+- ✅ 不要なDBインデックス削除
+
+### メール送信改善
+- ✅ SendGrid HTTP API 完全対応
+- ✅ 本番SMTP完全無効化
+- ✅ メールクライアント互換性対応（グラデーション削除）
+- ✅ HTMLメールテンプレート最適化
+
+### JWT認証修正
+- ✅ BulkUploadUserSerializer で必ず create_user() 使用
+- ✅ パスワードハッシュ化保証
+- ✅ 401エラー解消
+
+### API設計改善
+- ✅ APIクライアント一元化（frontend/src/api/client.ts）
+- ✅ 相対パス → 環境変数URL使用
+- ✅ JWTトークン自動付与（interceptor）
+- ✅ 401時自動ログアウト
+
+詳細は `DEPLOY.md` を参照してください。

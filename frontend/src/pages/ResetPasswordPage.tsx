@@ -16,11 +16,12 @@ const ResetPasswordPage: React.FC = () => {
   const [passwordError, setPasswordError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // ページ表示時にトークンを検証
+  // ページ表示時にRESETトークンを検証
   useEffect(() => {
     const verify = async () => {
       try {
-        await apiClient.get(`/api/users/verify_invite/?token=${token}`);
+        // verify_reset を使用（RESET トークン専用）
+        await apiClient.get(`/api/users/verify_reset/?token=${token}`);
         setLoading(false);
       } catch (err: any) {
         setError(err.response?.data?.error || 'トークンが無効です');
