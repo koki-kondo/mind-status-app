@@ -290,16 +290,28 @@ class BulkUploadUserSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """
-        ユーザー作成
+        ユーザー作成（パスワードハッシュ化保証版）
         
-        role, is_activated, organization, password は save() 時に注入される
+        必ず create_user() を通すことで set_password() 実行を保証。
+        password=None の場合でも create_user() を使用することで、
+        使用不可なパスワードが設定され、招待フローで後からパスワード設定可能。
+        
+        Args:
+            validated_data: バリデーション済みデータ
+                - role, is_activated, organization, password はサーバー側で注入済み
+        
+        Returns:
+            User: 作成されたユーザーインスタンス
         """
         password = validated_data.pop('password', None)
         
-        if password:
-            user = User.objects.create_user(password=password, **validated_data)
-        else:
-            user = User.objects.create(**validated_data)
+        # 必ず create_user() を使用（password が None でも OK）
+        # → set_password() が必ず実行される
+        # → JWT認証が正常動作する
+        user = User.objects.create_user(
+            password=password,
+            **validated_data
+        )
         
         return user
     

@@ -33,5 +33,3 @@ MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 raw_cors = os.getenv("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = [origin for origin in raw_cors.split(",") if origin]
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
-
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
