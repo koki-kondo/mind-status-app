@@ -34,6 +34,7 @@ class UserViewSet(viewsets.ModelViewSet):
             'verify_invite',            # 招待トークン検証
             'set_password_with_invite', # 招待パスワード設定
             'request_password_reset',   # パスワードリセット要求
+            'verify_reset',             # リセットトークン検証
             'reset_password',           # パスワードリセット実行
         ]
         
@@ -43,10 +44,14 @@ class UserViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
-        """組織でフィルタリング"""
         user = self.request.user
+
+        if not user.is_authenticated:
+            return User.objects.none()
+
         if user.role == 'ADMIN':
             return User.objects.filter(organization=user.organization)
+
         return User.objects.filter(id=user.id)
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
@@ -378,7 +383,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=http_status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny], authentication_classes=[])
     def verify_reset(self, request):
         """
         パスワードリセットトークンを検証
@@ -742,39 +747,6 @@ class UserViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = 'attachment; filename="user_template.xlsx"'
         
         return response
-    
-    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
-    def register_admin(self, request):
-        """管理者登録API（組織とアカウントを同時作成）"""
-        from .serializers import AdminRegistrationSerializer
-        
-        serializer = AdminRegistrationSerializer(data=request.data)
-        
-        if serializer.is_valid():
-            try:
-                user = serializer.save()
-                
-                return Response({
-                    'success': True,
-                    'message': '管理者アカウントが作成されました。ログインしてください。',
-                    'user': {
-                        'email': user.email,
-                        'full_name': user.full_name,
-                        'organization': user.organization.name,
-                        'org_type': user.organization.org_type
-                    }
-                }, status=http_status.HTTP_201_CREATED)
-                
-            except Exception as e:
-                return Response(
-                    {'error': f'アカウント作成に失敗しました: {str(e)}'},
-                    status=http_status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        
-        return Response(
-            {'errors': serializer.errors},
-            status=http_status.HTTP_400_BAD_REQUEST
-        )
     
     @action(detail=True, methods=['delete'], permission_classes=[permissions.IsAuthenticated])
     def delete_user(self, request, pk=None):
