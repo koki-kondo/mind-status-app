@@ -62,7 +62,7 @@ Django REST Framework + React (TypeScript) による
 ### Infrastructure
 
 - Vercel (Frontend)
-- Render.com (Backend + PostgreSQL)
+- Render (Backend + PostgreSQL)
 - SendGrid (Email)
 - Docker / Docker Compose
 
@@ -70,126 +70,104 @@ Django REST Framework + React (TypeScript) による
 
 ## 📂 ディレクトリ構成
 
-MIND-STATUS-APP
-|---.env
-|---.env.example
-|---.env.production.example
-|---.gitattributes
-|---.gitignore
-|---DEPLOY.md
-|---docker-compose.yml
-|---README.md
-|---render.yaml
-|
-+---backend
-|   |   build.sh
-|   |   Dockerfile
-|   |   manage.py
-|   |   requirements.txt
-|   |
-|   +---api
-|   |   |   admin.py
-|   |   |   apps.py
-|   |   |   models.py
-|   |   |   serializers.py
-|   |   |   urls.py
-|   |   |   validators.py
-|   |   |   views.py
-|   |   |   __init__.py
-|   |   |
-|   |   +---migrations
-|   |   |       0001_initial.py
-|   |   |       0002_alter_invitetoken_options_invitetoken_token_type_and_more.py
-|   |   |       __init__.py
-|   |   |
-|   |   \---utils
-|   |           email.py
-|   |           __init__.py
-|   |
-|   \---config
-|       |   asgi.py
-|       |   urls.py
-|       |   wsgi.py
-|       |   __init__.py
-|       |
-|       +---settings
-|       |   |   base.py
-|       |   |   development.py
-|       |   |   production.py
-|       |   |   __init__.py
-|       |   |
-|       |   \---__pycache__
-|       |           base.cpython-314.pyc
-|       |           development.cpython-314.pyc
-|       |           production.cpython-314.pyc
-|       |           __init__.cpython-314.pyc
-|       |
-|       \---__pycache__
-|               __init__.cpython-314.pyc
-|
-\---frontend
-    |   Dockerfile
-    |   package.json
-    |   tsconfig.json
-    |   vercel.json
-    |
-    +---node_modules
-    +---public
-    |       index.html
-    |
-    \---src
-        |   App.css
-        |   App.tsx
-        |   index.css
-        |   index.tsx
-        |   react-app-env.d.ts
-        |
-        +---api
-        |       client.ts
-        |       public.ts
-        |       
-        +---components
-        |       InviteRouteHandler.tsx
-        |       StatusTrend.css
-        |       StatusTrend.tsx
-        |       UserBulkUpload.css
-        |       UserBulkUpload.tsx
-        |
-        \---pages
-                AdminDashboard.css
-                AdminDashboard.tsx
-                AdminRegisterPage.css
-                AdminRegisterPage.tsx
-                ChangePasswordPage.tsx
-                Dashboard.css
-                Dashboard.tsx
-                ForgotPasswordPage.tsx
-                InvitePage.css
-                InvitePage.tsx
-                Login.css
-                Login.tsx
-                ResetPasswordPage.tsx
+```
+
+mind-status-app
+│
+├─ backend
+│  ├─ Dockerfile
+│  ├─ build.sh
+│  ├─ manage.py
+│  ├─ requirements.txt
+│  │
+│  ├─ api
+│  │  ├─ models.py
+│  │  ├─ serializers.py
+│  │  ├─ views.py
+│  │  ├─ urls.py
+│  │  ├─ validators.py
+│  │  ├─ admin.py
+│  │  └─ utils
+│  │     └─ email.py
+│  │
+│  └─ config
+│     ├─ urls.py
+│     ├─ asgi.py
+│     ├─ wsgi.py
+│     └─ settings
+│        ├─ base.py
+│        ├─ development.py
+│        └─ production.py
+│
+├─ frontend
+│  ├─ Dockerfile
+│  ├─ package.json
+│  ├─ tsconfig.json
+│  ├─ vercel.json
+│  │
+│  ├─ public
+│  │  └─ index.html
+│  │
+│  └─ src
+│     ├─ api
+│     │  ├─ client.ts
+│     │  └─ public.ts
+│     │
+│     ├─ components
+│     │  ├─ InviteRouteHandler.tsx
+│     │  ├─ StatusTrend.tsx
+│     │  └─ UserBulkUpload.tsx
+│     │
+│     └─ pages
+│        ├─ Login.tsx
+│        ├─ Dashboard.tsx
+│        ├─ AdminDashboard.tsx
+│        ├─ AdminRegisterPage.tsx
+│        ├─ InvitePage.tsx
+│        ├─ ForgotPasswordPage.tsx
+│        ├─ ResetPasswordPage.tsx
+│        └─ ChangePasswordPage.tsx
+│
+├─ docs
+│  └─ screenshots
+│     ├─ login.png
+│     ├─ admin-dashboard.png
+│     ├─ bulk-upload.png
+│     └─ user-dashboard.png
+│
+├─ docker-compose.yml
+├─ render.yaml
+├─ DEPLOY.md
+└─ README.md
 
 ---
 
-## 🎯 デモ
+## 🎯 公開デモ
 
-実際に操作できるデモ環境です。
+実際に操作できる公開環境です。
 
 - **Frontend**: https://mind-status-app.vercel.app
-- **Backend API**: https://mind-status-backend.onrender.com/api
 - **Django Admin**: https://mind-status-backend.onrender.com/admin
 
 ### テストアカウント
 
 ```
-管理者:
-admin@example.com
-Admin123!
+学校管理者:
+school_admin@example.com
+testSchool123
 
-一般ユーザー:
-user@example.com
-User123!
+学校ユーザー:
+school_user@example.com
+testSchool123
+
+企業管理者:
+company_admin@example.com
+testCompany123
+
+企業ユーザー:
+company_user@example.com
+testCompany123
+
 ```
 
 ---
@@ -297,7 +275,7 @@ SendGrid (Email)
 ### Clone
 
 ```bash
-git clone https://github.com/your-username/mind-status-app.git
+git clone https://github.com/koki-kondo/mind-status-app.git
 cd mind-status-app
 ```
 
