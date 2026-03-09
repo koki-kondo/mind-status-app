@@ -139,6 +139,7 @@ mind-status-app
 ├─ render.yaml
 ├─ DEPLOY.md
 └─ README.md
+```
 
 ---
 
