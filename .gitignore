@@ -81,3 +81,10 @@ coverage.xml
 *.bak
 *.tmp
 .temp/
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini

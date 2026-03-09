@@ -404,7 +404,7 @@ class UserViewSet(viewsets.ModelViewSet):
         
         try:
             # RESET トークンのみ検証
-            reset_token = InviteToken.objects.get(
+            reset_token = InviteToken.objects.select_related('user').get(
                 token=token,
                 token_type='RESET'
             )
