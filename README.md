@@ -148,7 +148,6 @@ mind-status-app
 実際に操作できる公開環境です。
 
 - **Frontend**: https://mind-status-app.vercel.app
-- **Django Admin**: https://mind-status-backend.onrender.com/admin
 
 ### テストアカウント
 
